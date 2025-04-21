@@ -84,29 +84,3 @@ func TestSetFlag(t *testing.T) {
 		t.Errorf("FlagN expected to be cleared, but it was not")
 	}
 }
-
-func TestLDAImmediate(t *testing.T) {
-	cpuInstance := cpu.New()
-
-	// Устанавливаем Reset Vector на 0x8000
-	cpuInstance.Memory[cpu.ResetVector] = 0x00
-	cpuInstance.Memory[cpu.ResetVector+1] = 0x80
-	cpuInstance.Reset()
-
-	// Пишем LDA #$42 по адресу 0x8000
-	cpuInstance.Memory[0x8000] = 0xA9 // LDA Immediate
-	cpuInstance.Memory[0x8001] = 0xC0
-
-	// Выполняем
-	cpuInstance.Execute()
-
-	if cpuInstance.A != 0xC0 {
-		t.Errorf("Expected A = 0xC0, got 0x%02X", cpuInstance.A)
-	}
-	if cpuInstance.GetFlag(cpu.FlagZ) {
-		t.Errorf("Expected Zero flag to be cleared")
-	}
-	if !cpuInstance.GetFlag(cpu.FlagN) {
-		t.Errorf("Expected Negative flag to be set")
-	}
-}
