@@ -1,5 +1,7 @@
 package cpu
 
+import "fmt"
+
 type AddressingMode int
 
 const (
@@ -22,8 +24,8 @@ type Instruction struct {
 	Opcode  byte
 	Bytes   int
 	Cycles  int
-	Execute func(cpu *CPU, addr uint16)
 	Mode    AddressingMode
+	Execute func(cpu *CPU, addr uint16)
 }
 
 var Instructions = map[byte]Instruction{}
@@ -93,4 +95,24 @@ func ldaAbsolute(cpu *CPU, address uint16) {
 	cpu.A = cpu.Memory[address]
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func (inst *Instruction) GetAddress(c *CPU) uint16 {
+	var addr uint16
+	switch inst.Mode {
+	case Immediate:
+		addr = c.fetchImediate()
+	case ZeroPage:
+		addr = c.fetchZeroPage()
+	case ZeroPageX:
+		addr = c.fetchZeroPageX()
+	case ZeroPageY:
+		addr = c.fetchZeroPageY()
+	case Absolute:
+		addr = c.fetchAbsolute()
+	default:
+		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
+		panic(str)
+	}
+	return addr
 }

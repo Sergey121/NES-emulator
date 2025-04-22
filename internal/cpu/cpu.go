@@ -63,20 +63,8 @@ func (c *CPU) Execute() {
 		panic(str)
 	}
 
-	var addr uint16
-	switch inst.Mode {
-	case Immediate:
-		addr = c.fetchImediate()
-	case ZeroPage:
-		addr = c.fetchZeroPage()
-	case ZeroPageX:
-		addr = c.fetchZeroPageX()
-	case Absolute:
-		addr = c.fetchAbsolute()
-	default:
-		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
-		panic(str)
-	}
+	addr := inst.GetAddress(c)
+
 	inst.Execute(c, addr)
 	c.PC += uint16(inst.Bytes)
 }
@@ -93,6 +81,12 @@ func (c *CPU) fetchZeroPage() uint16 {
 func (cpu *CPU) fetchZeroPageX() uint16 {
 	base := cpu.Memory[cpu.PC+1]
 	addr := (uint16(base) + uint16(cpu.X)) & 0x00FF
+	return addr
+}
+
+func (cpu *CPU) fetchZeroPageY() uint16 {
+	base := cpu.Memory[cpu.PC+1]
+	addr := (uint16(base) + uint16(cpu.Y)) & 0x00FF
 	return addr
 }
 

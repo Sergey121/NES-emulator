@@ -1,17 +1,15 @@
-package cpu_test
+package cpu
 
 import (
 	"testing"
-
-	"github.com/sergey121/nes-emulator/internal/cpu"
 )
 
 func TestCPUReset(t *testing.T) {
-	cpuInstance := cpu.New()
+	cpuInstance := New()
 
 	// Set up the Reset Vector in memory
-	cpuInstance.Memory[cpu.ResetVector] = 0x34
-	cpuInstance.Memory[cpu.ResetVector+1] = 0x12
+	cpuInstance.Memory[ResetVector] = 0x34
+	cpuInstance.Memory[ResetVector+1] = 0x12
 
 	// Call the Reset method
 	cpuInstance.Reset()
@@ -44,43 +42,143 @@ func TestCPUReset(t *testing.T) {
 	}
 
 	// Verify the Processor Status (P) is set correctly
-	expectedP := cpu.FlagI | cpu.FlagU
+	expectedP := FlagI | FlagU
 	if cpuInstance.P != byte(expectedP) {
 		t.Errorf("P expected to be 0x%02X, got 0x%02X", expectedP, cpuInstance.P)
 	}
 }
 func TestSetFlag(t *testing.T) {
-	cpuInstance := cpu.New()
+	cpuInstance := New()
 
 	// Test setting a flag to true
-	cpuInstance.SetFlag(cpu.FlagC, true)
-	if !cpuInstance.GetFlag(cpu.FlagC) {
+	cpuInstance.SetFlag(FlagC, true)
+	if !cpuInstance.GetFlag(FlagC) {
 		t.Errorf("FlagC expected to be set, but it was not")
 	}
 
 	// Test setting a flag to false
-	cpuInstance.SetFlag(cpu.FlagC, false)
-	if cpuInstance.GetFlag(cpu.FlagC) {
+	cpuInstance.SetFlag(FlagC, false)
+	if cpuInstance.GetFlag(FlagC) {
 		t.Errorf("FlagC expected to be cleared, but it was not")
 	}
 
 	// Test setting multiple flags
-	cpuInstance.SetFlag(cpu.FlagZ, true)
-	cpuInstance.SetFlag(cpu.FlagN, true)
-	if !cpuInstance.GetFlag(cpu.FlagZ) {
+	cpuInstance.SetFlag(FlagZ, true)
+	cpuInstance.SetFlag(FlagN, true)
+	if !cpuInstance.GetFlag(FlagZ) {
 		t.Errorf("FlagZ expected to be set, but it was not")
 	}
-	if !cpuInstance.GetFlag(cpu.FlagN) {
+	if !cpuInstance.GetFlag(FlagN) {
 		t.Errorf("FlagN expected to be set, but it was not")
 	}
 
 	// Test clearing multiple flags
-	cpuInstance.SetFlag(cpu.FlagZ, false)
-	cpuInstance.SetFlag(cpu.FlagN, false)
-	if cpuInstance.GetFlag(cpu.FlagZ) {
+	cpuInstance.SetFlag(FlagZ, false)
+	cpuInstance.SetFlag(FlagN, false)
+	if cpuInstance.GetFlag(FlagZ) {
 		t.Errorf("FlagZ expected to be cleared, but it was not")
 	}
-	if cpuInstance.GetFlag(cpu.FlagN) {
+	if cpuInstance.GetFlag(FlagN) {
 		t.Errorf("FlagN expected to be cleared, but it was not")
+	}
+}
+
+func TestFetchImediate(t *testing.T) {
+	cpuInstance := New()
+
+	// Set the Program Counter (PC) to a known value
+	cpuInstance.PC = 0x1000
+
+	// Call fetchImediate
+	result := cpuInstance.fetchImediate()
+
+	// Verify the result
+	expected := uint16(0x1001)
+	if result != expected {
+		t.Errorf("fetchImediate expected to return 0x%04X, got 0x%04X", expected, result)
+	}
+}
+
+func TestFetchZeroPage(t *testing.T) {
+	cpuInstance := New()
+
+	// Set the Program Counter (PC) to a known value
+	cpuInstance.PC = 0x1000
+
+	// Set a value in memory at the zero page address
+	cpuInstance.Memory[0x1001] = 0x42
+
+	address := cpuInstance.fetchZeroPage()
+	expectedAddress := uint16(0x0042)
+
+	if address != expectedAddress {
+		t.Errorf("fetchZeroPage expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+}
+
+func TestFetchZeroPageX(t *testing.T) {
+	cpuInstance := New()
+
+	// Set the Program Counter (PC) to a known value
+	cpuInstance.PC = 0x1000
+
+	// Set a value in memory at the zero page address
+	cpuInstance.Memory[0x1001] = 0x42
+	cpuInstance.X = 0x10
+
+	address := cpuInstance.fetchZeroPageX()
+	expectedAddress := uint16(0x0052) // 0x42 + 0x10 = 0x52
+	if address != expectedAddress {
+		t.Errorf("fetchZeroPageX expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+
+	cpuInstance.Memory[0x1001] = 0xFC
+	cpuInstance.X = 0xFC // Test wraparound
+	address = cpuInstance.fetchZeroPageX()
+	expectedAddress = uint16(0x00F8) // 0xFC + 0xFC = 0x1F8 & 0xFF = 0xF8
+	if address != expectedAddress {
+		t.Errorf("fetchZeroPageX owerflow expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+}
+
+func TestFetchZeroPageY(t *testing.T) {
+	cpuInstance := New()
+
+	// Set the Program Counter (PC) to a known value
+	cpuInstance.PC = 0x1000
+
+	// Set a value in memory at the zero page address
+	cpuInstance.Memory[0x1001] = 0x42
+	cpuInstance.Y = 0x10
+
+	address := cpuInstance.fetchZeroPageY()
+	expectedAddress := uint16(0x0052) // 0x42 + 0x10 = 0x52
+	if address != expectedAddress {
+		t.Errorf("fetchZeroPageY expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+
+	cpuInstance.Memory[0x1001] = 0xFC
+	cpuInstance.Y = 0xFC // Test wraparound
+	address = cpuInstance.fetchZeroPageY()
+	expectedAddress = uint16(0x00F8) // 0xFC + 0xFC = 0x1F8 & 0xFF = 0xF8
+	if address != expectedAddress {
+		t.Errorf("fetchZeroPageY owerflow expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+}
+
+func TestFetchAbsolute(t *testing.T) {
+	cpuInstance := New()
+
+	// Set the Program Counter (PC) to a known value
+	cpuInstance.PC = 0x1000
+
+	// Set a value in memory at the absolute address
+	cpuInstance.Memory[0x1001] = 0x42
+	cpuInstance.Memory[0x1002] = 0x84 // 0x8442
+
+	address := cpuInstance.fetchAbsolute()
+	expectedAddress := uint16(0x8442) // 0x42 + (0x84 << 8)
+	if address != expectedAddress {
+		t.Errorf("fetchAbsolute expected to return 0x%04X, got 0x%04X", expectedAddress, address)
 	}
 }
