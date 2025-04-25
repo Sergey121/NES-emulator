@@ -182,3 +182,95 @@ func TestFetchAbsolute(t *testing.T) {
 		t.Errorf("fetchAbsolute expected to return 0x%04X, got 0x%04X", expectedAddress, address)
 	}
 }
+func TestFetchAbsoluteX(t *testing.T) {
+	cpuInstance := New()
+
+	// Set the Program Counter (PC) to a known value
+	cpuInstance.PC = 0x1000
+
+	// Set a value in memory at the absolute address
+	cpuInstance.Memory[0x1001] = 0x34
+	cpuInstance.Memory[0x1002] = 0x12 // 0x1234
+	cpuInstance.X = 0x10
+
+	address := cpuInstance.fetchAbsoluteX()
+	expectedAddress := uint16(0x1244) // 0x1234 + 0x10
+	if address != expectedAddress {
+		t.Errorf("fetchAbsoluteX expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+
+	// Test with wraparound
+	cpuInstance.Memory[0x1001] = 0xFF
+	cpuInstance.Memory[0x1002] = 0xFF // 0xFFFF
+	cpuInstance.X = 0x01
+
+	address = cpuInstance.fetchAbsoluteX()
+	expectedAddress = uint16(0x0000) // 0xFFFF + 0x01 = 0x10000 & 0xFFFF = 0x0000
+	if address != expectedAddress {
+		t.Errorf("fetchAbsoluteX wraparound expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+}
+func TestFetchAbsoluteY(t *testing.T) {
+	cpuInstance := New()
+
+	// Set the Program Counter (PC) to a known value
+	cpuInstance.PC = 0x1000
+
+	// Set a value in memory at the absolute address
+	cpuInstance.Memory[0x1001] = 0x34
+	cpuInstance.Memory[0x1002] = 0x12 // 0x1234
+	cpuInstance.Y = 0x10
+
+	address := cpuInstance.fetchAbsoluteY()
+	expectedAddress := uint16(0x1244) // 0x1234 + 0x10
+	if address != expectedAddress {
+		t.Errorf("fetchAbsoluteY expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+
+	// Test with wraparound
+	cpuInstance.Memory[0x1001] = 0xFF
+	cpuInstance.Memory[0x1002] = 0xFF // 0xFFFF
+	cpuInstance.Y = 0x01
+
+	address = cpuInstance.fetchAbsoluteY()
+	expectedAddress = uint16(0x0000) // 0xFFFF + 0x01 = 0x10000 & 0xFFFF = 0x0000
+	if address != expectedAddress {
+		t.Errorf("fetchAbsoluteY wraparound expected to return 0x%04X, got 0x%04X", expectedAddress, address)
+	}
+}
+
+func TestFetchIndirectY(t *testing.T) {
+	cpuInstance := New()
+
+	// Настройка: PC указывает на инструкцию
+	cpuInstance.PC = 0x0200
+	cpuInstance.Y = 0x05
+
+	// В память по адресу PC + 1 кладем указатель на Zero Page: 0x10
+	cpuInstance.Memory[0x0201] = 0x10
+
+	// В Zero Page по адресу 0x10 и 0x11 лежит базовый адрес: 0x34 + 0x12<<8 = 0x1234
+	cpuInstance.Memory[0x0010] = 0x34
+	cpuInstance.Memory[0x0011] = 0x12
+
+	// Ожидаемый адрес: 0x1234 + 0x05 = 0x1239
+	addr := cpuInstance.fetchIndirectY()
+	expected := uint16(0x1239)
+
+	if addr != expected {
+		t.Errorf("Expected fetchIndirectY to return 0x%04X, got 0x%04X", expected, addr)
+	}
+
+	// Тест wraparound: указатель в Zero Page — 0xFF, следующий байт — 0x00
+	cpuInstance.Memory[0x0201] = 0xFF
+	cpuInstance.Memory[0x00FF] = 0x78
+	cpuInstance.Memory[0x0000] = 0x56 // wraparound!
+
+	cpuInstance.Y = 0x01
+	addr = cpuInstance.fetchIndirectY()
+	expected = (uint16(0x56)<<8 | 0x78) + 0x01
+
+	if addr != expected {
+		t.Errorf("Expected fetchIndirectY with wraparound to return 0x%04X, got 0x%04X", expected, addr)
+	}
+}

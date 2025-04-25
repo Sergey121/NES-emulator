@@ -38,7 +38,7 @@ func init() {
 		Opcode:  0xA9,
 		Bytes:   2,
 		Cycles:  2,
-		Execute: ldaImmediate,
+		Execute: ldaExecute,
 		Mode:    Immediate,
 	}
 
@@ -47,7 +47,7 @@ func init() {
 		Opcode:  0xA5,
 		Bytes:   2,
 		Cycles:  3,
-		Execute: ldaZeroPage,
+		Execute: ldaExecute,
 		Mode:    ZeroPage,
 	}
 
@@ -56,7 +56,7 @@ func init() {
 		Opcode:  0xB5,
 		Bytes:   2,
 		Cycles:  4,
-		Execute: ldaZeroPageX,
+		Execute: ldaExecute,
 		Mode:    ZeroPageX,
 	}
 
@@ -65,34 +65,52 @@ func init() {
 		Opcode:  0xAD,
 		Bytes:   3,
 		Cycles:  4,
-		Execute: ldaAbsolute,
+		Execute: ldaExecute,
 		Mode:    Absolute,
+	}
+
+	Instructions[0xBD] = Instruction{
+		Name:    "LDA Absolute,X",
+		Opcode:  0xBD,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: ldaExecute,
+		Mode:    AbsoluteX,
+	}
+
+	Instructions[0xB9] = Instruction{
+		Name:    "LDA Absolute,Y",
+		Opcode:  0xB9,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: ldaExecute,
+		Mode:    AbsoluteY,
+	}
+
+	Instructions[0xA1] = Instruction{
+		Name:    "LDA (Indirect,X)",
+		Opcode:  0xA1,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: ldaExecute,
+		Mode:    IndirectX,
+	}
+
+	Instructions[0xB1] = Instruction{
+		Name:    "LDA (Indirect),Y",
+		Opcode:  0xB1,
+		Bytes:   2,
+		Cycles:  5, // add 1 to cycles if page boundary is crossed
+		Execute: ldaExecute,
+		Mode:    IndirectY,
 	}
 
 	// LDA Instruction ---- End
 }
 
-func ldaImmediate(cpu *CPU, addr uint16) {
+func ldaExecute(cpu *CPU, addr uint16) {
 	value := cpu.Memory[addr]
 	cpu.A = value
-	cpu.SetFlag(FlagZ, cpu.A == 0)
-	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
-}
-
-func ldaZeroPage(cpu *CPU, addr uint16) {
-	cpu.A = cpu.Memory[addr]
-	cpu.SetFlag(FlagZ, cpu.A == 0)
-	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
-}
-
-func ldaZeroPageX(cpu *CPU, addr uint16) {
-	cpu.A = cpu.Memory[addr]
-	cpu.SetFlag(FlagZ, cpu.A == 0)
-	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
-}
-
-func ldaAbsolute(cpu *CPU, address uint16) {
-	cpu.A = cpu.Memory[address]
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }
@@ -110,6 +128,15 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 		addr = c.fetchZeroPageY()
 	case Absolute:
 		addr = c.fetchAbsolute()
+	case AbsoluteX:
+		addr = c.fetchAbsoluteX()
+	case AbsoluteY:
+		addr = c.fetchAbsoluteY()
+	case IndirectX:
+		addr = c.fetchIndirectX()
+	case IndirectY:
+		addr = c.fetchIndirectY()
+
 	default:
 		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
 		panic(str)

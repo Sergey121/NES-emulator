@@ -95,3 +95,36 @@ func (cpu *CPU) fetchAbsolute() uint16 {
 	hi := cpu.Memory[cpu.PC+2]
 	return uint16(lo) | (uint16(hi) << 8)
 }
+
+func (cpu *CPU) fetchAbsoluteX() uint16 {
+	lo := cpu.Memory[cpu.PC+1]
+	hi := cpu.Memory[cpu.PC+2]
+	addr := uint16(lo) | (uint16(hi) << 8)
+	addr += uint16(cpu.X)
+	return addr
+}
+
+func (cpu *CPU) fetchAbsoluteY() uint16 {
+	lo := cpu.Memory[cpu.PC+1]
+	hi := cpu.Memory[cpu.PC+2]
+	addr := uint16(lo) | (uint16(hi) << 8)
+	addr += uint16(cpu.Y)
+	return addr
+}
+
+func (cpu *CPU) fetchIndirectX() uint16 {
+	base := cpu.Memory[cpu.PC+1]
+	addr := (uint16(base) + uint16(cpu.X)) & 0x00FF
+	lo := cpu.Memory[addr]
+	hi := cpu.Memory[(addr+1)&0x00FF]
+	return uint16(lo) | (uint16(hi) << 8)
+}
+
+func (cpu *CPU) fetchIndirectY() uint16 {
+	base := cpu.Memory[cpu.PC+1]
+	lo := cpu.Memory[base]
+	hi := cpu.Memory[(base+1)&0x00FF]
+	addr := uint16(lo) | (uint16(hi) << 8)
+	addr += uint16(cpu.Y)
+	return addr
+}
