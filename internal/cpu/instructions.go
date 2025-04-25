@@ -31,8 +31,46 @@ type Instruction struct {
 var Instructions = map[byte]Instruction{}
 
 func init() {
+	initLDAInstruction()
+}
 
-	// LDA Instruction ---- Start
+func ldaExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.A = value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func (inst *Instruction) GetAddress(c *CPU) uint16 {
+	var addr uint16
+	switch inst.Mode {
+	case Immediate:
+		addr = c.fetchImediate()
+	case ZeroPage:
+		addr = c.fetchZeroPage()
+	case ZeroPageX:
+		addr = c.fetchZeroPageX()
+	case ZeroPageY:
+		addr = c.fetchZeroPageY()
+	case Absolute:
+		addr = c.fetchAbsolute()
+	case AbsoluteX:
+		addr = c.fetchAbsoluteX()
+	case AbsoluteY:
+		addr = c.fetchAbsoluteY()
+	case IndirectX:
+		addr = c.fetchIndirectX()
+	case IndirectY:
+		addr = c.fetchIndirectY()
+
+	default:
+		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
+		panic(str)
+	}
+	return addr
+}
+
+func initLDAInstruction() {
 	Instructions[0xA9] = Instruction{
 		Name:    "LDA Immediate",
 		Opcode:  0xA9,
@@ -104,42 +142,4 @@ func init() {
 		Execute: ldaExecute,
 		Mode:    IndirectY,
 	}
-
-	// LDA Instruction ---- End
-}
-
-func ldaExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
-	cpu.A = value
-	cpu.SetFlag(FlagZ, cpu.A == 0)
-	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
-}
-
-func (inst *Instruction) GetAddress(c *CPU) uint16 {
-	var addr uint16
-	switch inst.Mode {
-	case Immediate:
-		addr = c.fetchImediate()
-	case ZeroPage:
-		addr = c.fetchZeroPage()
-	case ZeroPageX:
-		addr = c.fetchZeroPageX()
-	case ZeroPageY:
-		addr = c.fetchZeroPageY()
-	case Absolute:
-		addr = c.fetchAbsolute()
-	case AbsoluteX:
-		addr = c.fetchAbsoluteX()
-	case AbsoluteY:
-		addr = c.fetchAbsoluteY()
-	case IndirectX:
-		addr = c.fetchIndirectX()
-	case IndirectY:
-		addr = c.fetchIndirectY()
-
-	default:
-		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
-		panic(str)
-	}
-	return addr
 }
