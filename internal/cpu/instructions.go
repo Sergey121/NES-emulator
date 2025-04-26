@@ -31,8 +31,12 @@ type Instruction struct {
 var Instructions = map[byte]Instruction{}
 
 func init() {
-	initLDAInstruction()
-	initSTAInstruction()
+	initLDAInstructions()
+	initLDXInstructions()
+	initLDYInstructions()
+	initSTAInstructions()
+	initSTXInstructions()
+	initSTYInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -71,7 +75,7 @@ func ldaExecute(cpu *CPU, addr uint16) {
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }
 
-func initLDAInstruction() {
+func initLDAInstructions() {
 	Instructions[0xA9] = Instruction{
 		Name:    "LDA Immediate",
 		Opcode:  0xA9,
@@ -150,7 +154,7 @@ func staExecute(cpu *CPU, addr uint16) {
 	// STA does not affect any flags
 }
 
-func initSTAInstruction() {
+func initSTAInstructions() {
 	Instructions[0x85] = Instruction{
 		Name:    "STA Zero Page",
 		Opcode:  0x85,
@@ -214,4 +218,180 @@ func initSTAInstruction() {
 		Execute: staExecute,
 	}
 
+}
+
+func initLDXInstructions() {
+	Instructions[0xA2] = Instruction{
+		Name:    "LDX Immediate",
+		Opcode:  0xA2,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: ldxExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0xA6] = Instruction{
+		Name:    "LDX Zero Page",
+		Opcode:  0xA6,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: ldxExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0xB6] = Instruction{
+		Name:    "LDX Zero Page,Y",
+		Opcode:  0xB6,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: ldxExecute,
+		Mode:    ZeroPageY,
+	}
+
+	Instructions[0xAE] = Instruction{
+		Name:    "LDX Absolute",
+		Opcode:  0xAE,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: ldxExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0xBE] = Instruction{
+		Name:    "LDX Absolute,Y",
+		Opcode:  0xBE,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: ldxExecute,
+		Mode:    AbsoluteY,
+	}
+}
+
+func ldxExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.X = value
+	cpu.SetFlag(FlagZ, cpu.X == 0)
+	cpu.SetFlag(FlagN, (cpu.X&0x80) != 0)
+}
+
+func initLDYInstructions() {
+	Instructions[0xA0] = Instruction{
+		Name:    "LDY Immediate",
+		Opcode:  0xA0,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: ldyExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0xA4] = Instruction{
+		Name:    "LDY Zero Page",
+		Opcode:  0xA4,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: ldyExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0xB4] = Instruction{
+		Name:    "LDY Zero Page,X",
+		Opcode:  0xB4,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: ldyExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0xAC] = Instruction{
+		Name:    "LDY Absolute",
+		Opcode:  0xAC,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: ldyExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0xBC] = Instruction{
+		Name:    "LDY Absolute,X",
+		Opcode:  0xBC,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: ldyExecute,
+		Mode:    AbsoluteX,
+	}
+}
+
+func ldyExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.Y = value
+	cpu.SetFlag(FlagZ, cpu.Y == 0)
+	cpu.SetFlag(FlagN, (cpu.Y&0x80) != 0)
+}
+
+func initSTXInstructions() {
+	Instructions[0x86] = Instruction{
+		Name:    "STX Zero Page",
+		Opcode:  0x86,
+		Bytes:   2,
+		Cycles:  3,
+		Mode:    ZeroPage,
+		Execute: stxExecute,
+	}
+
+	Instructions[0x96] = Instruction{
+		Name:    "STX Zero Page,Y",
+		Opcode:  0x96,
+		Bytes:   2,
+		Cycles:  4,
+		Mode:    ZeroPageY,
+		Execute: stxExecute,
+	}
+
+	Instructions[0x8E] = Instruction{
+		Name:    "STX Absolute",
+		Opcode:  0x8E,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    Absolute,
+		Execute: stxExecute,
+	}
+}
+
+func stxExecute(cpu *CPU, addr uint16) {
+	cpu.Memory[addr] = cpu.X
+	// STX does not affect any flags
+}
+
+func initSTYInstructions() {
+	Instructions[0x84] = Instruction{
+		Name:    "STY Zero Page",
+		Opcode:  0x84,
+		Bytes:   2,
+		Cycles:  3,
+		Mode:    ZeroPage,
+		Execute: styExecute,
+	}
+
+	Instructions[0x94] = Instruction{
+		Name:    "STY Zero Page,X",
+		Opcode:  0x94,
+		Bytes:   2,
+		Cycles:  4,
+		Mode:    ZeroPageX,
+		Execute: styExecute,
+	}
+
+	Instructions[0x8C] = Instruction{
+		Name:    "STY Absolute",
+		Opcode:  0x8C,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    Absolute,
+		Execute: styExecute,
+	}
+}
+
+func styExecute(cpu *CPU, addr uint16) {
+	cpu.Memory[addr] = cpu.Y
+	// STY does not affect any flags
 }

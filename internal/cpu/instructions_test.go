@@ -533,3 +533,443 @@ func TestSTAOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestSTAExecute(t *testing.T) {
+	cpuInstance := New()
+	cpuInstance.Memory[ResetVector] = 0x00
+	cpuInstance.Memory[ResetVector+1] = 0x80
+	cpuInstance.Reset()
+
+	cpuInstance.A = 0x42
+	cpuInstance.Memory[0x8000] = 0x85 // Opcode for STA Zero Page
+	cpuInstance.Memory[0x8001] = 0x20 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Memory[0x20] != 0x42 {
+		t.Errorf("Expected memory at 0x0020 to be 0x42, got 0x%02X", cpuInstance.Memory[0x20])
+	}
+
+	cpuInstance.Reset()
+
+	cpuInstance.A = 0x99
+	cpuInstance.Memory[0x8000] = 0x8D // Opcode for STA Absolute
+	cpuInstance.Memory[0x8001] = 0x34
+	cpuInstance.Memory[0x8002] = 0x12 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Memory[0x1234] != 0x99 {
+		t.Errorf("Expected memory at 0x1234 to be 0x99, got 0x%02X", cpuInstance.Memory[0x1234])
+	}
+}
+
+func TestLDXOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: A2 (LDX Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x8000] = 0xA2
+				cpu.Memory[0x8001] = 0x55
+			},
+			assert: func(cpu *CPU) {
+				if cpu.X != 0x55 {
+					t.Errorf("Expected X = 0x55, got 0x%02X", cpu.X)
+				}
+			},
+		},
+		{
+			name: "Opcode: A6 (LDX ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x10] = 0x66
+				cpu.Memory[0x8000] = 0xA6
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.X != 0x66 {
+					t.Errorf("Expected X = 0x66, got %02X", cpu.X)
+				}
+			},
+		},
+		{
+			name: "Opcode: B6 (LDX ZeroPage,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x01
+				cpu.Memory[0x11] = 0x77
+				cpu.Memory[0x8000] = 0xB6
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.X != 0x77 {
+					t.Errorf("Expected X = 0x77, got %02X", cpu.X)
+				}
+			},
+		},
+		{
+			name: "Opcode: AE (LDX Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x1234] = 0x88
+				cpu.Memory[0x8000] = 0xAE
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.X != 0x88 {
+					t.Errorf("Expected X = 0x88, got %02X", cpu.X)
+				}
+			},
+		},
+		{
+			name: "Opcode: BE (LDX Absolute,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x01
+				cpu.Memory[0x1235] = 0x99
+				cpu.Memory[0x8000] = 0xBE
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.X != 0x99 {
+					t.Errorf("Expected X = 0x99, got %02X", cpu.X)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestLDXExecute(t *testing.T) {
+	cpuInstance := New()
+	cpuInstance.Memory[ResetVector] = 0x00
+	cpuInstance.Memory[ResetVector+1] = 0x80
+	cpuInstance.Reset()
+
+	// Test LDX Immediate
+	cpuInstance.Memory[0x8000] = 0xA2 // Opcode for LDX Immediate
+	cpuInstance.Memory[0x8001] = 0x55 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.X != 0x55 {
+		t.Errorf("Expected X = 0x55, got 0x%02X", cpuInstance.X)
+	}
+
+	cpuInstance.Reset()
+	// Test LDX Zero Page
+	cpuInstance.Memory[0x10] = 0x66
+	cpuInstance.Memory[0x8000] = 0xA6 // Opcode for LDX Zero Page
+	cpuInstance.Memory[0x8001] = 0x10 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.X != 0x66 {
+		t.Errorf("Expected X = 0x66, got 0x%02X", cpuInstance.X)
+	}
+}
+
+func TestLDYOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: A0 (LDY Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x8000] = 0xA0
+				cpu.Memory[0x8001] = 0x77
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Y != 0x77 {
+					t.Errorf("Expected Y = 0x77, got 0x%02X", cpu.Y)
+				}
+			},
+		},
+		{
+			name: "Opcode: A4 (LDY ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x10] = 0x88
+				cpu.Memory[0x8000] = 0xA4
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Y != 0x88 {
+					t.Errorf("Expected Y = 0x88, got 0x%02X", cpu.Y)
+				}
+			},
+		},
+		{
+			name: "Opcode: B4 (LDY ZeroPage,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x01
+				cpu.Memory[0x11] = 0x99
+				cpu.Memory[0x8000] = 0xB4
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Y != 0x99 {
+					t.Errorf("Expected Y = 0x99, got 0x%02X", cpu.Y)
+				}
+			},
+		},
+		{
+			name: "Opcode: AC (LDY Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x1234] = 0xAB
+				cpu.Memory[0x8000] = 0xAC
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Y != 0xAB {
+					t.Errorf("Expected Y = 0xAB, got 0x%02X", cpu.Y)
+				}
+			},
+		},
+		{
+			name: "Opcode: BC (LDY Absolute,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x01
+				cpu.Memory[0x1235] = 0xCD
+				cpu.Memory[0x8000] = 0xBC
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Y != 0xCD {
+					t.Errorf("Expected Y = 0xCD, got 0x%02X", cpu.Y)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestLDYExecute(t *testing.T) {
+	cpuInstance := New()
+	cpuInstance.Memory[ResetVector] = 0x00
+	cpuInstance.Memory[ResetVector+1] = 0x80
+	cpuInstance.Reset()
+
+	// Test LDY Immediate
+	cpuInstance.Memory[0x8000] = 0xA0 // Opcode for LDY Immediate
+	cpuInstance.Memory[0x8001] = 0x77 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Y != 0x77 {
+		t.Errorf("Expected Y = 0x77, got 0x%02X", cpuInstance.Y)
+	}
+
+	cpuInstance.Reset()
+	// Test LDY Zero Page
+	cpuInstance.Memory[0x10] = 0x88
+	cpuInstance.Memory[0x8000] = 0xA4 // Opcode for LDY Zero Page
+	cpuInstance.Memory[0x8001] = 0x10 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Y != 0x88 {
+		t.Errorf("Expected Y = 0x88, got 0x%02X", cpuInstance.Y)
+	}
+}
+
+func TestSTXOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 86 (STX ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x55
+				cpu.Memory[0x8000] = 0x86
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Memory[0x0010] != 0x55 {
+					t.Errorf("Expected memory at 0x0010 to be 0x55, got 0x%02X", cpu.Memory[0x0010])
+				}
+			},
+		},
+		{
+			name: "Opcode: 96 (STX ZeroPage,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x66
+				cpu.Y = 0x04
+				cpu.Memory[0x8000] = 0x96
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Memory[0x0014] != 0x66 {
+					t.Errorf("Expected memory at 0x0014 to be 0x66, got 0x%02X", cpu.Memory[0x0014])
+				}
+			},
+		},
+		{
+			name: "Opcode: 8E (STX Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x77
+				cpu.Memory[0x8000] = 0x8E
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Memory[0x1234] != 0x77 {
+					t.Errorf("Expected memory at 0x1234 to be 0x77, got 0x%02X", cpu.Memory[0x1234])
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestSTXExecute(t *testing.T) {
+	cpuInstance := New()
+	cpuInstance.Memory[ResetVector] = 0x00
+	cpuInstance.Memory[ResetVector+1] = 0x80
+	cpuInstance.Reset()
+
+	// Test STX Zero Page
+	cpuInstance.X = 0x55
+	cpuInstance.Memory[0x8000] = 0x86 // Opcode for STX Zero Page
+	cpuInstance.Memory[0x8001] = 0x10 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Memory[0x0010] != 0x55 {
+		t.Errorf("Expected memory at 0x0010 to be 0x55, got 0x%02X", cpuInstance.Memory[0x0010])
+	}
+
+	cpuInstance.Reset()
+	// Test STX Absolute
+	cpuInstance.X = 0x99
+	cpuInstance.Memory[0x8000] = 0x8E // Opcode for STX Absolute
+	cpuInstance.Memory[0x8001] = 0x34 // Operand
+	cpuInstance.Memory[0x8002] = 0x12 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Memory[0x1234] != 0x99 {
+		t.Errorf("Expected memory at 0x1234 to be 0x99, got 0x%02X", cpuInstance.Memory[0x1234])
+	}
+}
+
+func TestSTYOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 84 (STY ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x11
+				cpu.Memory[0x8000] = 0x84
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Memory[0x0020] != 0x11 {
+					t.Errorf("Expected memory at 0x0020 to be 0x11, got 0x%02X", cpu.Memory[0x0020])
+				}
+			},
+		},
+		{
+			name: "Opcode: 94 (STY ZeroPage,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x22
+				cpu.X = 0x05
+				cpu.Memory[0x8000] = 0x94
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Memory[0x0015] != 0x22 {
+					t.Errorf("Expected memory at 0x0015 to be 0x22, got 0x%02X", cpu.Memory[0x0015])
+				}
+			},
+		},
+		{
+			name: "Opcode: 8C (STY Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x33
+				cpu.Memory[0x8000] = 0x8C
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Memory[0x1234] != 0x33 {
+					t.Errorf("Expected memory at 0x1234 to be 0x33, got 0x%02X", cpu.Memory[0x1234])
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestSTYExecute(t *testing.T) {
+	cpuInstance := New()
+	cpuInstance.Memory[ResetVector] = 0x00
+	cpuInstance.Memory[ResetVector+1] = 0x80
+	cpuInstance.Reset()
+
+	// Test STY Zero Page
+	cpuInstance.Y = 0x11
+	cpuInstance.Memory[0x8000] = 0x84 // Opcode for STY Zero Page
+	cpuInstance.Memory[0x8001] = 0x20 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Memory[0x0020] != 0x11 {
+		t.Errorf("Expected memory at 0x0020 to be 0x11, got 0x%02X", cpuInstance.Memory[0x0020])
+	}
+
+	cpuInstance.Reset()
+	// Test STY Absolute
+	cpuInstance.Y = 0x99
+	cpuInstance.Memory[0x8000] = 0x8C // Opcode for STY Absolute
+	cpuInstance.Memory[0x8001] = 0x34 // Operand
+	cpuInstance.Memory[0x8002] = 0x12 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.Memory[0x1234] != 0x99 {
+		t.Errorf("Expected memory at 0x1234 to be 0x99, got 0x%02X", cpuInstance.Memory[0x1234])
+	}
+}
