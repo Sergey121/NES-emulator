@@ -32,13 +32,7 @@ var Instructions = map[byte]Instruction{}
 
 func init() {
 	initLDAInstruction()
-}
-
-func ldaExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
-	cpu.A = value
-	cpu.SetFlag(FlagZ, cpu.A == 0)
-	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+	initSTAInstruction()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -68,6 +62,13 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 		panic(str)
 	}
 	return addr
+}
+
+func ldaExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.A = value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }
 
 func initLDAInstruction() {
@@ -142,4 +143,75 @@ func initLDAInstruction() {
 		Execute: ldaExecute,
 		Mode:    IndirectY,
 	}
+}
+
+func staExecute(cpu *CPU, addr uint16) {
+	cpu.Memory[addr] = cpu.A
+	// STA does not affect any flags
+}
+
+func initSTAInstruction() {
+	Instructions[0x85] = Instruction{
+		Name:    "STA Zero Page",
+		Opcode:  0x85,
+		Bytes:   2,
+		Cycles:  3,
+		Mode:    ZeroPage,
+		Execute: staExecute,
+	}
+
+	Instructions[0x95] = Instruction{
+		Name:    "STA Zero Page,X",
+		Opcode:  0x95,
+		Bytes:   2,
+		Cycles:  4,
+		Mode:    ZeroPageX,
+		Execute: staExecute,
+	}
+
+	Instructions[0x8D] = Instruction{
+		Name:    "STA Absolute",
+		Opcode:  0x8D,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    Absolute,
+		Execute: staExecute,
+	}
+
+	Instructions[0x9D] = Instruction{
+		Name:    "STA Absolute,X",
+		Opcode:  0x9D,
+		Bytes:   3,
+		Cycles:  5,
+		Mode:    AbsoluteX,
+		Execute: staExecute,
+	}
+
+	Instructions[0x99] = Instruction{
+		Name:    "STA Absolute,Y",
+		Opcode:  0x99,
+		Bytes:   3,
+		Cycles:  5,
+		Mode:    AbsoluteY,
+		Execute: staExecute,
+	}
+
+	Instructions[0x81] = Instruction{
+		Name:    "STA (Indirect,X)",
+		Opcode:  0x81,
+		Bytes:   2,
+		Cycles:  6,
+		Mode:    IndirectX,
+		Execute: staExecute,
+	}
+
+	Instructions[0x91] = Instruction{
+		Name:    "STA (Indirect),Y",
+		Opcode:  0x91,
+		Bytes:   2,
+		Cycles:  6,
+		Mode:    IndirectY,
+		Execute: staExecute,
+	}
+
 }
