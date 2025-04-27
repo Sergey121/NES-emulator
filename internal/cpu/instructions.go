@@ -42,6 +42,8 @@ func init() {
 	initFlagInstructions()
 	initSBCInstructions()
 	initANDInstructions()
+	initEORInstructions()
+	initORAInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -821,6 +823,168 @@ func initANDInstructions() {
 func andExecute(cpu *CPU, addr uint16) {
 	value := cpu.Memory[addr]
 	cpu.A &= value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func initEORInstructions() {
+	Instructions[0x49] = Instruction{
+		Name:    "EOR Immediate",
+		Opcode:  0x49,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: eorExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0x45] = Instruction{
+		Name:    "EOR Zero Page",
+		Opcode:  0x45,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: eorExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x55] = Instruction{
+		Name:    "EOR Zero Page,X",
+		Opcode:  0x55,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: eorExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0x4D] = Instruction{
+		Name:    "EOR Absolute",
+		Opcode:  0x4D,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: eorExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0x5D] = Instruction{
+		Name:    "EOR Absolute,X",
+		Opcode:  0x5D,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: eorExecute,
+		Mode:    AbsoluteX,
+	}
+
+	Instructions[0x59] = Instruction{
+		Name:    "EOR Absolute,Y",
+		Opcode:  0x59,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: eorExecute,
+		Mode:    AbsoluteY,
+	}
+
+	Instructions[0x41] = Instruction{
+		Name:    "EOR (Indirect,X)",
+		Opcode:  0x41,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: eorExecute,
+		Mode:    IndirectX,
+	}
+
+	Instructions[0x51] = Instruction{
+		Name:    "EOR (Indirect),Y",
+		Opcode:  0x51,
+		Bytes:   2,
+		Cycles:  5, // add 1 to cycles if page boundary is crossed
+		Execute: eorExecute,
+		Mode:    IndirectY,
+	}
+}
+
+func eorExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.A ^= value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func initORAInstructions() {
+	Instructions[0x09] = Instruction{
+		Name:    "ORA Immediate",
+		Opcode:  0x09,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: oraExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0x05] = Instruction{
+		Name:    "ORA Zero Page",
+		Opcode:  0x05,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: oraExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x15] = Instruction{
+		Name:    "ORA Zero Page,X",
+		Opcode:  0x15,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: oraExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0x0D] = Instruction{
+		Name:    "ORA Absolute",
+		Opcode:  0x0D,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: oraExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0x1D] = Instruction{
+		Name:    "ORA Absolute,X",
+		Opcode:  0x1D,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: oraExecute,
+		Mode:    AbsoluteX,
+	}
+
+	Instructions[0x19] = Instruction{
+		Name:    "ORA Absolute,Y",
+		Opcode:  0x19,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: oraExecute,
+		Mode:    AbsoluteY,
+	}
+
+	Instructions[0x01] = Instruction{
+		Name:    "ORA (Indirect,X)",
+		Opcode:  0x01,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: oraExecute,
+		Mode:    IndirectX,
+	}
+
+	Instructions[0x11] = Instruction{
+		Name:    "ORA (Indirect),Y",
+		Opcode:  0x11,
+		Bytes:   2,
+		Cycles:  5, // add 1 to cycles if page boundary is crossed
+		Execute: oraExecute,
+		Mode:    IndirectY,
+	}
+}
+
+func oraExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.A |= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }

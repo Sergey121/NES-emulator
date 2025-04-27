@@ -1774,3 +1774,212 @@ func TestANDOpcodes(t *testing.T) {
 	}
 	runTests(t, tests)
 }
+
+func TestEOROpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 49 (EOR Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Memory[0x8000] = 0x49 // EOR #imm
+				cpu.Memory[0x8001] = 0x0F
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xF0 {
+					t.Errorf("Expected A = 0xF0, got 0x%02X", cpu.A)
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: 45 (EOR Zero Page)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Memory[0x0025] = 0xCC
+				cpu.Memory[0x8000] = 0x45 // EOR Zero Page
+				cpu.Memory[0x8001] = 0x25 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x33 {
+					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 55 (EOR Zero Page,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xAA
+				cpu.X = 0x01
+				cpu.Memory[0x0020+1] = 0xFF
+				cpu.Memory[0x8000] = 0x55 // EOR ZeroPage,X
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x55 {
+					t.Errorf("Expected A = 0x55, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 4D (EOR Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Memory[0x1234] = 0xCC
+				cpu.Memory[0x8000] = 0x4D // EOR Absolute
+				cpu.Memory[0x8001] = 0x34 // Operand
+				cpu.Memory[0x8002] = 0x12 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x33 {
+					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 5D (EOR Absolute,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.X = 1
+				cpu.Memory[0x1235] = 0xCC // Address is (1234 + X)
+				cpu.Memory[0x8000] = 0x5D // EOR Absolute,X
+				cpu.Memory[0x8001] = 0x34 // Operand
+				cpu.Memory[0x8002] = 0x12 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x33 {
+					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 59 (EOR Absolute,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Y = 1
+				cpu.Memory[0x1235] = 0xCC // Address is (1234 + Y)
+				cpu.Memory[0x8000] = 0x59 // EOR Absolute,Y
+				cpu.Memory[0x8001] = 0x34 // Operand
+				cpu.Memory[0x8002] = 0x12 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x33 {
+					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 41 (EOR (Indirect,X))",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.X = 1
+				cpu.Memory[0x0021] = 0x34 // Low byte of address
+				cpu.Memory[0x0022] = 0x12 // High byte of address
+				cpu.Memory[0x1234] = 0xCC
+
+				cpu.Memory[0x8000] = 0x41 // EOR (Indirect,X)
+				cpu.Memory[0x8001] = 0x20 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x33 {
+					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 51 (EOR (Indirect),Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Y = 1
+				cpu.Memory[0x0020] = 0x34 // Low byte of address
+				cpu.Memory[0x0021] = 0x12 // High byte of address
+				cpu.Memory[0x1235] = 0xCC
+
+				cpu.Memory[0x8000] = 0x51 // EOR (Indirect),Y
+				cpu.Memory[0x8001] = 0x20 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x33 {
+					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
+				}
+			},
+		},
+	}
+	runTests(t, tests)
+}
+
+func TestORAOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 09 (ORA Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.Memory[0x8000] = 0x09 // ORA #imm
+				cpu.Memory[0x8001] = 0x01
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x11 {
+					t.Errorf("Expected A = 0x11, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 15 (ORA ZeroPage,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x80
+				cpu.X = 0x01
+				cpu.Memory[0x0020+1] = 0x01
+				cpu.Memory[0x8000] = 0x15 // ORA ZeroPage,X
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x81 {
+					t.Errorf("Expected A = 0x81, got 0x%02X", cpu.A)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
