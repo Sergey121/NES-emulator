@@ -1609,3 +1609,168 @@ func TestSBCOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestANDOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 29 (AND Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Memory[0x8000] = 0x29 // AND #imm
+				cpu.Memory[0x8001] = 0xCC // AND with 0xCC
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 25 (AND Zero Page)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Memory[0x0025] = 0xCC
+				cpu.Memory[0x8000] = 0x25 // AND Zero Page
+				cpu.Memory[0x8001] = 0x25 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 35 (AND Zero Page,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.X = 0x2
+				cpu.Memory[0x0027] = 0xCC // Address is (25 + X)
+				cpu.Memory[0x8000] = 0x35 // AND Zero Page,X
+				cpu.Memory[0x8001] = 0x25 // Operand
+				cpu.Memory[0x8002] = 0x00
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 2D (AND Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Memory[0x1234] = 0xCC
+				cpu.Memory[0x8000] = 0x2D // AND Absolute
+				cpu.Memory[0x8001] = 0x34 // Operand
+				cpu.Memory[0x8002] = 0x12 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 3D (AND Absolute,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.X = 1
+				cpu.Memory[0x1235] = 0xCC // Address is (1234 + X)
+				cpu.Memory[0x8000] = 0x3D // AND Absolute,X
+				cpu.Memory[0x8001] = 0x34 // Operand
+				cpu.Memory[0x8002] = 0x12 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+
+		{
+			name: "Opcode: 39 (AND Absolute,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Y = 1
+				cpu.Memory[0x1235] = 0xCC // Address is (1234 + Y)
+				cpu.Memory[0x8000] = 0x39 // AND Absolute,Y
+				cpu.Memory[0x8001] = 0x34 // Operand
+				cpu.Memory[0x8002] = 0x12 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 21 (AND (Indirect,X))",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.X = 1
+				cpu.Memory[0x0021] = 0x34 // Low byte of address
+				cpu.Memory[0x0022] = 0x12 // High byte of address
+				cpu.Memory[0x1234] = 0xCC
+
+				cpu.Memory[0x8000] = 0x21 // AND (Indirect,X)
+				cpu.Memory[0x8001] = 0x20 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 31 (AND (Indirect),Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Y = 1
+				cpu.Memory[0x0020] = 0x34 // Low byte of address
+				cpu.Memory[0x0021] = 0x12 // High byte of address
+				cpu.Memory[0x1235] = 0xCC
+
+				cpu.Memory[0x8000] = 0x31 // AND (Indirect),Y
+				cpu.Memory[0x8001] = 0x20 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xCC {
+					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
+				}
+			},
+		},
+	}
+	runTests(t, tests)
+}

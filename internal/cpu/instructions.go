@@ -41,6 +41,7 @@ func init() {
 	initTransferInstructions()
 	initFlagInstructions()
 	initSBCInstructions()
+	initANDInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -741,4 +742,85 @@ func sbcExecute(cpu *CPU, addr uint16) {
 	cpu.SetFlag(FlagV, ((uint16(cpu.A)^result)&(uint16(cpu.A)^uint16(value))&0x80) != 0)
 
 	cpu.A = byte(result & 0xFF)
+}
+
+func initANDInstructions() {
+	Instructions[0x29] = Instruction{
+		Name:    "AND Immediate",
+		Opcode:  0x29,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: andExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0x25] = Instruction{
+		Name:    "AND Zero Page",
+		Opcode:  0x25,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: andExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x35] = Instruction{
+		Name:    "AND Zero Page,X",
+		Opcode:  0x35,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: andExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0x2D] = Instruction{
+		Name:    "AND Absolute",
+		Opcode:  0x2D,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: andExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0x3D] = Instruction{
+		Name:    "AND Absolute,X",
+		Opcode:  0x3D,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: andExecute,
+		Mode:    AbsoluteX,
+	}
+
+	Instructions[0x39] = Instruction{
+		Name:    "AND Absolute,Y",
+		Opcode:  0x39,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: andExecute,
+		Mode:    AbsoluteY,
+	}
+
+	Instructions[0x21] = Instruction{
+		Name:    "AND (Indirect,X)",
+		Opcode:  0x21,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: andExecute,
+		Mode:    IndirectX,
+	}
+
+	Instructions[0x31] = Instruction{
+		Name:    "AND (Indirect),Y",
+		Opcode:  0x31,
+		Bytes:   2,
+		Cycles:  5, // add 1 to cycles if page boundary is crossed
+		Execute: andExecute,
+		Mode:    IndirectY,
+	}
+}
+
+func andExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.A &= value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }
