@@ -1433,3 +1433,179 @@ func TestADCExecute(t *testing.T) {
 		t.Errorf("Expected A = 0x30, got 0x%02X", cpuInstance.A)
 	}
 }
+
+func TestSBCOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: E9 (SBC Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x50
+				cpu.SetFlag(FlagC, true)  // Carry установлен
+				cpu.Memory[0x8000] = 0xE9 // SBC #imm
+				cpu.Memory[0x8001] = 0x10 // вычитаем 0x10
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x40 {
+					t.Errorf("Expected A = 0x40, got 0x%02X", cpu.A)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: E5 (SBC Zero Page)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x30
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0020] = 0x10
+				cpu.Memory[0x8000] = 0xE5
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x20 {
+					t.Errorf("Expected A = 0x20, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: F5 (SBC Zero Page,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x20
+				cpu.X = 0x05
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0025] = 0x10
+				cpu.Memory[0x8000] = 0xF5
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x10 {
+					t.Errorf("Expected A = 0x10, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: ED (SBC Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x30
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x1234] = 0x10
+				cpu.Memory[0x8000] = 0xED
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x20 {
+					t.Errorf("Expected A = 0x20, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: FD (SBC Absolute,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x20
+				cpu.X = 0x01
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x1235] = 0x10
+				cpu.Memory[0x8000] = 0xFD
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x10 {
+					t.Errorf("Expected A = 0x10, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: F9 (SBC Absolute,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x20
+				cpu.Y = 0x01
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x1235] = 0x10
+				cpu.Memory[0x8000] = 0xF9
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x10 {
+					t.Errorf("Expected A = 0x10, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: E1 (SBC (Indirect,X))",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x40
+				cpu.X = 0x04
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0024] = 0x34
+				cpu.Memory[0x0025] = 0x12
+				cpu.Memory[0x1234] = 0x10
+				cpu.Memory[0x8000] = 0xE1
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: F1 (SBC (Indirect),Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x40
+				cpu.Y = 0x01
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0020] = 0x34
+				cpu.Memory[0x0021] = 0x12
+				cpu.Memory[0x1235] = 0x10
+				cpu.Memory[0x8000] = 0xF1
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}

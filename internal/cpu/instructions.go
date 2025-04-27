@@ -40,6 +40,7 @@ func init() {
 	initSTYInstructions()
 	initTransferInstructions()
 	initFlagInstructions()
+	initSBCInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -643,10 +644,101 @@ func adcExecute(cpu *CPU, addr uint16) {
 	}
 	result := uint16(cpu.A) + uint16(value) + uint16(carry)
 
-	cpu.A = byte(result & 0xFF)
-
 	cpu.SetFlag(FlagC, result > 0xFF)
-	cpu.SetFlag(FlagZ, cpu.A == 0)
-	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
-	cpu.SetFlag(FlagV, ((uint16(cpu.A)^addr)&(uint16(cpu.A)^result)&0x80) != 0)
+	cpu.SetFlag(FlagZ, byte(result&0xFF) == 0)
+	cpu.SetFlag(FlagN, (result&0x80) != 0)
+	cpu.SetFlag(FlagV, (^(uint16(cpu.A)^uint16(value))&(uint16(cpu.A)^result)&0x80) != 0)
+
+	cpu.A = byte(result & 0xFF)
+}
+
+func initSBCInstructions() {
+	Instructions[0xE9] = Instruction{
+		Name:    "SBC Immediate",
+		Opcode:  0xE9,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: sbcExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0xE5] = Instruction{
+		Name:    "SBC Zero Page",
+		Opcode:  0xE5,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: sbcExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0xF5] = Instruction{
+		Name:    "SBC Zero Page,X",
+		Opcode:  0xF5,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: sbcExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0xED] = Instruction{
+		Name:    "SBC Absolute",
+		Opcode:  0xED,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: sbcExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0xFD] = Instruction{
+		Name:    "SBC Absolute,X",
+		Opcode:  0xFD,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: sbcExecute,
+		Mode:    AbsoluteX,
+	}
+
+	Instructions[0xF9] = Instruction{
+		Name:    "SBC Absolute,Y",
+		Opcode:  0xF9,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: sbcExecute,
+		Mode:    AbsoluteY,
+	}
+
+	Instructions[0xE1] = Instruction{
+		Name:    "SBC (Indirect,X)",
+		Opcode:  0xE1,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: sbcExecute,
+		Mode:    IndirectX,
+	}
+
+	Instructions[0xF1] = Instruction{
+		Name:    "SBC (Indirect),Y",
+		Opcode:  0xF1,
+		Bytes:   2,
+		Cycles:  5, // add 1 to cycles if page boundary is crossed
+		Execute: sbcExecute,
+		Mode:    IndirectY,
+	}
+}
+
+func sbcExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	carryIn := 0
+	if cpu.GetFlag(FlagC) {
+		carryIn = 1
+	}
+	// Сначала делаем инверсию carry: (1 - carryIn)
+	result := uint16(cpu.A) - uint16(value) - (1 - uint16(carryIn))
+
+	cpu.SetFlag(FlagC, result < 0x100)
+	cpu.SetFlag(FlagZ, byte(result&0xFF) == 0)
+	cpu.SetFlag(FlagN, (result&0x80) != 0)
+	cpu.SetFlag(FlagV, ((uint16(cpu.A)^result)&(uint16(cpu.A)^uint16(value))&0x80) != 0)
+
+	cpu.A = byte(result & 0xFF)
 }
