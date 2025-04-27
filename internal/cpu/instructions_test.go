@@ -1240,3 +1240,196 @@ func TestFlagOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestADCOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 69 (ADC Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.Memory[0x8000] = 0x69
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 65 (ADC ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.Memory[0x20] = 0x20
+				cpu.Memory[0x8000] = 0x65
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 75 (ADC ZeroPage,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.X = 0x01
+				cpu.Memory[0x21] = 0x20
+				cpu.Memory[0x8000] = 0x75
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 6D (ADC Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.Memory[0x1234] = 0x20
+				cpu.Memory[0x8000] = 0x6D
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 7D (ADC Absolute,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.X = 0x01
+				cpu.Memory[0x1235] = 0x20
+				cpu.Memory[0x8000] = 0x7D
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 79 (ADC Absolute,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.Y = 0x01
+				cpu.Memory[0x1235] = 0x20
+				cpu.Memory[0x8000] = 0x79
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 61 (ADC Indirect,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.X = 0x01
+				cpu.Memory[0x0021] = 0x34 // low byte of address
+				cpu.Memory[0x0022] = 0x12 // high byte of address
+
+				cpu.Memory[0x1234] = 0x20
+
+				cpu.Memory[0x8000] = 0x61
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+		{
+			name: "Opcode: 71 (ADC Indirect,Y)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.Y = 0x01
+				cpu.Memory[0x0020] = 0x34 // low byte of address
+				cpu.Memory[0x0021] = 0x12 // high byte of address
+
+				cpu.Memory[0x1235] = 0x20
+
+				cpu.Memory[0x8000] = 0x71
+				cpu.Memory[0x8001] = 0x20
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x30 {
+					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestADCExecute(t *testing.T) {
+	cpuInstance := New()
+	cpuInstance.Memory[ResetVector] = 0x00
+	cpuInstance.Memory[ResetVector+1] = 0x80
+	cpuInstance.Reset()
+
+	// Test ADC Immediate
+	cpuInstance.A = 0x10
+	cpuInstance.Memory[0x8000] = 0x69 // Opcode for ADC Immediate
+	cpuInstance.Memory[0x8001] = 0x20 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.A != 0x30 {
+		t.Errorf("Expected A = 0x30, got 0x%02X", cpuInstance.A)
+	}
+
+	cpuInstance.Reset()
+	// Test ADC Zero Page
+	cpuInstance.A = 0x10
+	cpuInstance.Memory[0x20] = 0x20
+	cpuInstance.Memory[0x8000] = 0x65 // Opcode for ADC Zero Page
+	cpuInstance.Memory[0x8001] = 0x20 // Operand
+	cpuInstance.Execute()
+	if cpuInstance.A != 0x30 {
+		t.Errorf("Expected A = 0x30, got 0x%02X", cpuInstance.A)
+	}
+}

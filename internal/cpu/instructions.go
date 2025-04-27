@@ -31,6 +31,7 @@ type Instruction struct {
 var Instructions = map[byte]Instruction{}
 
 func init() {
+	initADCInstructions()
 	initLDAInstructions()
 	initLDXInstructions()
 	initLDYInstructions()
@@ -558,4 +559,94 @@ func initFlagInstructions() {
 			cpu.SetFlag(FlagV, false)
 		},
 	}
+}
+
+func initADCInstructions() {
+	Instructions[0x69] = Instruction{
+		Name:    "ADC Immediate",
+		Opcode:  0x69,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: adcExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0x65] = Instruction{
+		Name:    "ADC Zero Page",
+		Opcode:  0x65,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: adcExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x75] = Instruction{
+		Name:    "ADC Zero Page,X",
+		Opcode:  0x75,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: adcExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0x6D] = Instruction{
+		Name:    "ADC Absolute",
+		Opcode:  0x6D,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: adcExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0x7D] = Instruction{
+		Name:    "ADC Absolute,X",
+		Opcode:  0x7D,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: adcExecute,
+		Mode:    AbsoluteX,
+	}
+
+	Instructions[0x79] = Instruction{
+		Name:    "ADC Absolute,Y",
+		Opcode:  0x79,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: adcExecute,
+		Mode:    AbsoluteY,
+	}
+
+	Instructions[0x61] = Instruction{
+		Name:    "ADC (Indirect,X)",
+		Opcode:  0x61,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: adcExecute,
+		Mode:    IndirectX,
+	}
+
+	Instructions[0x71] = Instruction{
+		Name:    "ADC (Indirect),Y",
+		Opcode:  0x71,
+		Bytes:   2,
+		Cycles:  5, // add 1 to cycles if page boundary is crossed
+		Execute: adcExecute,
+		Mode:    IndirectY,
+	}
+}
+
+func adcExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	carry := 0
+	if cpu.GetFlag(FlagC) {
+		carry = 1
+	}
+	result := uint16(cpu.A) + uint16(value) + uint16(carry)
+
+	cpu.A = byte(result & 0xFF)
+
+	cpu.SetFlag(FlagC, result > 0xFF)
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+	cpu.SetFlag(FlagV, ((uint16(cpu.A)^addr)&(uint16(cpu.A)^result)&0x80) != 0)
 }
