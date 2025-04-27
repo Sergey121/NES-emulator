@@ -1983,3 +1983,135 @@ func TestORAOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestCMPOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: C9 (CMP Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x50
+				cpu.Memory[0x8000] = 0xC9
+				cpu.Memory[0x8001] = 0x40
+			},
+			assert: func(cpu *CPU) {
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: C5 (CMP ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x10
+				cpu.Memory[0x0025] = 0x10
+				cpu.Memory[0x8000] = 0xC5 // CMP Zero Page
+				cpu.Memory[0x8001] = 0x25 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestCPXOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: E0 (CPX Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x10
+				cpu.Memory[0x8000] = 0xE0 // CPX #imm
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: E4 (CPX ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x10
+				cpu.Memory[0x0025] = 0x10
+				cpu.Memory[0x8000] = 0xE4 // CPX Zero Page
+				cpu.Memory[0x8001] = 0x25 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestCPYOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: C0 (CPY Immediate)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x10
+				cpu.Memory[0x8000] = 0xC0 // CPY #imm
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: C4 (CPY ZeroPage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x10
+				cpu.Memory[0x0025] = 0x10
+				cpu.Memory[0x8000] = 0xC4 // CPY Zero Page
+				cpu.Memory[0x8001] = 0x25 // Operand
+			},
+			assert: func(cpu *CPU) {
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}

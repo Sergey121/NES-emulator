@@ -44,6 +44,9 @@ func init() {
 	initANDInstructions()
 	initEORInstructions()
 	initORAInstructions()
+	initCMPInstructions()
+	initCPXInstructions()
+	initCPYInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -987,4 +990,163 @@ func oraExecute(cpu *CPU, addr uint16) {
 	cpu.A |= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func initCMPInstructions() {
+	Instructions[0xC9] = Instruction{
+		Name:    "CMP Immediate",
+		Opcode:  0xC9,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: cmpExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0xC5] = Instruction{
+		Name:    "CMP Zero Page",
+		Opcode:  0xC5,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: cmpExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0xD5] = Instruction{
+		Name:    "CMP Zero Page,X",
+		Opcode:  0xD5,
+		Bytes:   2,
+		Cycles:  4,
+		Execute: cmpExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0xCD] = Instruction{
+		Name:    "CMP Absolute",
+		Opcode:  0xCD,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: cmpExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0xDD] = Instruction{
+		Name:    "CMP Absolute,X",
+		Opcode:  0xDD,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: cmpExecute,
+		Mode:    AbsoluteX,
+	}
+
+	Instructions[0xD9] = Instruction{
+		Name:    "CMP Absolute,Y",
+		Opcode:  0xD9,
+		Bytes:   3,
+		Cycles:  4, // add 1 to cycles if page boundary is crossed
+		Execute: cmpExecute,
+		Mode:    AbsoluteY,
+	}
+
+	Instructions[0xC1] = Instruction{
+		Name:    "CMP (Indirect,X)",
+		Opcode:  0xC1,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: cmpExecute,
+		Mode:    IndirectX,
+	}
+
+	Instructions[0xD1] = Instruction{
+		Name:    "CMP (Indirect),Y",
+		Opcode:  0xD1,
+		Bytes:   2,
+		Cycles:  5, // add 1 to cycles if page boundary is crossed
+		Execute: cmpExecute,
+		Mode:    IndirectY,
+	}
+}
+
+func cmpExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	result := uint16(cpu.A) - uint16(value)
+
+	cpu.SetFlag(FlagC, cpu.A >= value)
+	cpu.SetFlag(FlagZ, byte(result&0xFF) == 0)
+	cpu.SetFlag(FlagN, (result&0x80) != 0)
+}
+
+func initCPXInstructions() {
+	Instructions[0xE0] = Instruction{
+		Name:    "CPX Immediate",
+		Opcode:  0xE0,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: cpxExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0xE4] = Instruction{
+		Name:    "CPX Zero Page",
+		Opcode:  0xE4,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: cpxExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0xEC] = Instruction{
+		Name:    "CPX Absolute",
+		Opcode:  0xEC,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: cpxExecute,
+		Mode:    Absolute,
+	}
+}
+
+func cpxExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	result := uint16(cpu.X) - uint16(value)
+
+	cpu.SetFlag(FlagC, cpu.X >= value)
+	cpu.SetFlag(FlagZ, byte(result&0xFF) == 0)
+	cpu.SetFlag(FlagN, (result&0x80) != 0)
+}
+
+func initCPYInstructions() {
+	Instructions[0xC0] = Instruction{
+		Name:    "CPY Immediate",
+		Opcode:  0xC0,
+		Bytes:   2,
+		Cycles:  2,
+		Execute: cpyExecute,
+		Mode:    Immediate,
+	}
+
+	Instructions[0xC4] = Instruction{
+		Name:    "CPY Zero Page",
+		Opcode:  0xC4,
+		Bytes:   2,
+		Cycles:  3,
+		Execute: cpyExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0xCC] = Instruction{
+		Name:    "CPY Absolute",
+		Opcode:  0xCC,
+		Bytes:   3,
+		Cycles:  4,
+		Execute: cpyExecute,
+		Mode:    Absolute,
+	}
+}
+
+func cpyExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	result := uint16(cpu.Y) - uint16(value)
+
+	cpu.SetFlag(FlagC, cpu.Y >= value)
+	cpu.SetFlag(FlagZ, byte(result&0xFF) == 0)
+	cpu.SetFlag(FlagN, (result&0x80) != 0)
 }
