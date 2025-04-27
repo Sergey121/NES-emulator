@@ -973,3 +973,142 @@ func TestSTYExecute(t *testing.T) {
 		t.Errorf("Expected memory at 0x1234 to be 0x99, got 0x%02X", cpuInstance.Memory[0x1234])
 	}
 }
+
+func TestTransferOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: AA - TAX",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x00              // чтобы тестировать установку флага Zero
+				cpu.Memory[0x8000] = 0xAA // TAX
+			},
+			assert: func(cpu *CPU) {
+				if cpu.X != 0x00 {
+					t.Errorf("TAX failed: expected X = 0x00, got 0x%02X", cpu.X)
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("TAX failed: expected Zero flag to be set")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("TAX failed: expected Negative flag to be cleared")
+				}
+			},
+		},
+		{
+			name: "Opcode: A8 - TAY",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x80              // чтобы тестировать установку флага Negative
+				cpu.Memory[0x8000] = 0xA8 // TAY
+			},
+			assert: func(cpu *CPU) {
+				if cpu.Y != 0x80 {
+					t.Errorf("TAY failed: expected Y = 0x80, got 0x%02X", cpu.Y)
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("TAY failed: expected Zero flag to be cleared")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("TAY failed: expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: BA - TSX",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SP = 0xFF             // чтобы тестировать установку флага Negative
+				cpu.Memory[0x8000] = 0xBA // TSX
+			},
+			assert: func(cpu *CPU) {
+				if cpu.X != 0xFF {
+					t.Errorf("TSX failed: expected X = 0xFF, got 0x%02X", cpu.X)
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("TSX failed: expected Zero flag to be cleared")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("TSX failed: expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 8A - TXA",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x00              // проверим Zero флаг
+				cpu.Memory[0x8000] = 0x8A // TXA
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0x00 {
+					t.Errorf("TXA failed: expected A = 0x00, got 0x%02X", cpu.A)
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("TXA failed: expected Zero flag to be set")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("TXA failed: expected Negative flag to be cleared")
+				}
+			},
+		},
+		{
+			name: "Opcode: 9A - TXS",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0xFF              // чтобы тестировать установку флага Negative
+				cpu.Memory[0x8000] = 0x9A // TXS
+			},
+			assert: func(cpu *CPU) {
+				if cpu.SP != 0xFF {
+					t.Errorf("TXS failed: expected SP = 0xFF, got 0x%02X", cpu.SP)
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("TXS failed: expected Zero flag to be cleared")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("TXS failed: expected Negative flag to be cleared")
+				}
+			},
+		},
+		{
+			name: "Opcode: 98 - TYA",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0xFF              // тестируем Negative флаг
+				cpu.Memory[0x8000] = 0x98 // TYA
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0xFF {
+					t.Errorf("TYA failed: expected A = 0xFF, got 0x%02X", cpu.A)
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("TYA failed: expected Zero flag to be cleared")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("TYA failed: expected Negative flag to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}

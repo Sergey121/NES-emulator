@@ -128,3 +128,21 @@ func (cpu *CPU) fetchIndirectY() uint16 {
 	addr += uint16(cpu.Y)
 	return addr
 }
+
+func (cpu *CPU) fetchIndirect() uint16 {
+	lo := cpu.Memory[cpu.PC+1]
+	hi := cpu.Memory[cpu.PC+2]
+	addr := uint16(lo) | (uint16(hi) << 8)
+	// Специальная проверка на баг
+	var indirectAddr uint16
+	if lo == 0xFF {
+		indirectAddr = uint16(cpu.Memory[addr]) | (uint16(cpu.Memory[addr&0xFF00]) << 8)
+	} else {
+		indirectAddr = uint16(cpu.Memory[addr]) | (uint16(cpu.Memory[addr+1]) << 8)
+	}
+	return indirectAddr
+}
+
+func (cpu *CPU) fetchImplied() uint16 {
+	return 0
+}

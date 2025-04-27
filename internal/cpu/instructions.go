@@ -37,6 +37,7 @@ func init() {
 	initSTAInstructions()
 	initSTXInstructions()
 	initSTYInstructions()
+	initTransferInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -60,6 +61,10 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 		addr = c.fetchIndirectX()
 	case IndirectY:
 		addr = c.fetchIndirectY()
+	case Indirect:
+		addr = c.fetchIndirect()
+	case Implied:
+		addr = c.fetchImplied()
 
 	default:
 		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
@@ -394,4 +399,83 @@ func initSTYInstructions() {
 func styExecute(cpu *CPU, addr uint16) {
 	cpu.Memory[addr] = cpu.Y
 	// STY does not affect any flags
+}
+
+func initTransferInstructions() {
+	Instructions[0xAA] = Instruction{
+		Name:   "TAX",
+		Opcode: 0xAA,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.X = cpu.A
+			cpu.SetFlag(FlagZ, cpu.X == 0)
+			cpu.SetFlag(FlagN, (cpu.X&0x80) != 0)
+		},
+	}
+
+	Instructions[0xA8] = Instruction{
+		Name:   "TAY",
+		Opcode: 0xA8,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.Y = cpu.A
+			cpu.SetFlag(FlagZ, cpu.Y == 0)
+			cpu.SetFlag(FlagN, (cpu.Y&0x80) != 0)
+		},
+	}
+
+	Instructions[0xBA] = Instruction{
+		Name:   "TSX",
+		Opcode: 0xBA,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.X = cpu.SP
+			cpu.SetFlag(FlagZ, cpu.X == 0)
+			cpu.SetFlag(FlagN, (cpu.X&0x80) != 0)
+		},
+	}
+
+	Instructions[0x8A] = Instruction{
+		Name:   "TXA",
+		Opcode: 0x8A,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.A = cpu.X
+			cpu.SetFlag(FlagZ, cpu.A == 0)
+			cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+		},
+	}
+
+	Instructions[0x9A] = Instruction{
+		Name:   "TXS",
+		Opcode: 0x9A,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SP = cpu.X
+			// TXS does not affect any flags
+		},
+	}
+
+	Instructions[0x98] = Instruction{
+		Name:   "TYA",
+		Opcode: 0x98,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.A = cpu.Y
+			cpu.SetFlag(FlagZ, cpu.A == 0)
+			cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+		},
+	}
 }
