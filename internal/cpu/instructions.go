@@ -38,6 +38,7 @@ func init() {
 	initSTXInstructions()
 	initSTYInstructions()
 	initTransferInstructions()
+	initFlagInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -476,6 +477,85 @@ func initTransferInstructions() {
 			cpu.A = cpu.Y
 			cpu.SetFlag(FlagZ, cpu.A == 0)
 			cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+		},
+	}
+}
+
+func initFlagInstructions() {
+	Instructions[0x18] = Instruction{
+		Name:   "CLC",
+		Opcode: 0x18,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetFlag(FlagC, false)
+		},
+	}
+
+	Instructions[0x38] = Instruction{
+		Name:   "SEC",
+		Opcode: 0x38,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetFlag(FlagC, true)
+		},
+	}
+
+	Instructions[0xD8] = Instruction{
+		Name:   "CLD",
+		Opcode: 0xD8,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetFlag(FlagD, false)
+		},
+	}
+
+	Instructions[0xF8] = Instruction{
+		Name:   "SED",
+		Opcode: 0xF8,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetFlag(FlagD, true)
+		},
+	}
+
+	Instructions[0x58] = Instruction{
+		Name:   "CLI",
+		Opcode: 0x58,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetFlag(FlagI, false)
+		},
+	}
+
+	Instructions[0x78] = Instruction{
+		Name:   "SEI",
+		Opcode: 0x78,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetFlag(FlagI, true)
+		},
+	}
+
+	Instructions[0xB8] = Instruction{
+		Name:   "CLV",
+		Opcode: 0xB8,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetFlag(FlagV, false)
 		},
 	}
 }

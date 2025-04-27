@@ -1112,3 +1112,131 @@ func TestTransferOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestFlagOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 18 (CLC)",
+			init: func(cpuInstance *CPU) {
+				cpuInstance.Memory[ResetVector] = 0x00
+				cpuInstance.Memory[ResetVector+1] = 0x80
+				cpuInstance.Reset()
+
+				// Ставим Carry флаг заранее
+				cpuInstance.SetFlag(FlagC, true)
+
+				cpuInstance.Memory[0x8000] = 0x18 // CLC
+			},
+			assert: func(cpuInstance *CPU) {
+				if cpuInstance.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be cleared")
+				}
+			},
+		},
+		{
+			name: "Opcode: 38 (SEC)",
+			init: func(cpuInstance *CPU) {
+				cpuInstance.Memory[ResetVector] = 0x00
+				cpuInstance.Memory[ResetVector+1] = 0x80
+				cpuInstance.Reset()
+
+				// Очищаем Carry флаг заранее
+				cpuInstance.SetFlag(FlagC, false)
+
+				cpuInstance.Memory[0x8000] = 0x38 // SEC
+			},
+			assert: func(cpuInstance *CPU) {
+				if !cpuInstance.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: D8 (CLD)",
+			init: func(cpuInstance *CPU) {
+				cpuInstance.Memory[ResetVector] = 0x00
+				cpuInstance.Memory[ResetVector+1] = 0x80
+				cpuInstance.Reset()
+
+				cpuInstance.SetFlag(FlagD, true)
+
+				cpuInstance.Memory[0x8000] = 0xD8 // CLD
+			},
+			assert: func(cpuInstance *CPU) {
+				if cpuInstance.GetFlag(FlagD) {
+					t.Errorf("Expected Decimal Mode flag to be cleared")
+				}
+			},
+		},
+		{
+			name: "Opcode: F8 (SED)",
+			init: func(cpuInstance *CPU) {
+				cpuInstance.Memory[ResetVector] = 0x00
+				cpuInstance.Memory[ResetVector+1] = 0x80
+				cpuInstance.Reset()
+
+				cpuInstance.SetFlag(FlagD, false)
+
+				cpuInstance.Memory[0x8000] = 0xF8 // SED
+			},
+			assert: func(cpuInstance *CPU) {
+				if !cpuInstance.GetFlag(FlagD) {
+					t.Errorf("Expected Decimal Mode flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 58 (CLI)",
+			init: func(cpuInstance *CPU) {
+				cpuInstance.Memory[ResetVector] = 0x00
+				cpuInstance.Memory[ResetVector+1] = 0x80
+				cpuInstance.Reset()
+
+				cpuInstance.SetFlag(FlagI, true)
+
+				cpuInstance.Memory[0x8000] = 0x58 // CLI
+			},
+			assert: func(cpuInstance *CPU) {
+				if cpuInstance.GetFlag(FlagI) {
+					t.Errorf("Expected Interrupt Disable flag to be cleared")
+				}
+			},
+		},
+		{
+			name: "Opcode: 78 (SEI)",
+			init: func(cpuInstance *CPU) {
+				cpuInstance.Memory[ResetVector] = 0x00
+				cpuInstance.Memory[ResetVector+1] = 0x80
+				cpuInstance.Reset()
+
+				cpuInstance.SetFlag(FlagI, false)
+
+				cpuInstance.Memory[0x8000] = 0x78 // SEI
+			},
+			assert: func(cpuInstance *CPU) {
+				if !cpuInstance.GetFlag(FlagI) {
+					t.Errorf("Expected Interrupt Disable flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: B8 (CLV)",
+			init: func(cpuInstance *CPU) {
+				cpuInstance.Memory[ResetVector] = 0x00
+				cpuInstance.Memory[ResetVector+1] = 0x80
+				cpuInstance.Reset()
+
+				cpuInstance.SetFlag(FlagV, true)
+
+				cpuInstance.Memory[0x8000] = 0xB8 // CLV
+			},
+			assert: func(cpuInstance *CPU) {
+				if cpuInstance.GetFlag(FlagV) {
+					t.Errorf("Expected Overflow flag to be cleared")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
