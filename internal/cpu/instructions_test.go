@@ -2258,3 +2258,169 @@ func TestLSROpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestROROpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 6A (ROR A)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0b11000001        // старший бит установлен
+				cpu.Memory[0x8000] = 0x6A // ROR A
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0b01100000 {
+					t.Errorf("Expected A = 0b01100000, got 0x%08b", cpu.A)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be clear")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: 66 (ROR Zeropage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0010] = 0b01000001 // значение в zero page
+				cpu.Memory[0x8000] = 0x66       // ROR $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				value := cpu.Memory[0x0010]
+				if value != 0b10100000 {
+					t.Errorf("Expected memory[0x10] = 0b10100000, got 0x%08b", value)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestROLOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 2A (ROL A)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0b11000001        // старший бит установлен
+				cpu.Memory[0x8000] = 0x2A // ROL A
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0b10000010 {
+					t.Errorf("Expected A = 0b10000010, got 0x%08b", cpu.A)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: 26 (ROL Zeropage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0010] = 0b01000001 // значение в zero page
+				cpu.Memory[0x8000] = 0x26       // ROL $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				value := cpu.Memory[0x0010]
+				if value != 0b10000011 {
+					t.Errorf("Expected memory[0x10] = 0b10000011, got 0x%08b", value)
+				}
+				if cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be clear")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 36 (ROL Zeropage,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.X = 0x10
+				cpu.Memory[0x0020] = 0b01000001 // значение в zero page + X
+				cpu.Memory[0x8000] = 0x36       // ROL $10,X
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				value := cpu.Memory[0x0020] // после сдвига в адрес $30
+				if value != 0b10000011 {
+					t.Errorf("Expected memory[0x30] = 0b10000011, got 0x%08b", value)
+				}
+				if cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be clear")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 2E (ROL Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0030] = 0b01000001 // значение по абсолютному адресу
+				cpu.Memory[0x8000] = 0x2E       // ROL $30
+				cpu.Memory[0x8001] = 0x30
+				cpu.Memory[0x8002] = 0x00
+			},
+			assert: func(cpu *CPU) {
+				value := cpu.Memory[0x0030]
+				if value != 0b10000011 {
+					t.Errorf("Expected memory[0x30] = 0b10000011, got 0x%08b", value)
+				}
+				if cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be clear")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}

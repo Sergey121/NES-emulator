@@ -50,6 +50,8 @@ func init() {
 	initCPYInstructions()
 	initASLInstructions()
 	initLSRInstructions()
+	initRORInstructions()
+	initROLInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1283,4 +1285,148 @@ func lsrExecute(cpu *CPU, addr uint16) {
 	cpu.Memory[addr] = value
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, false)
+}
+
+func initRORInstructions() {
+	Instructions[0x6A] = Instruction{
+		Name:    "ROR Accumulator",
+		Opcode:  0x6A,
+		Bytes:   1,
+		Cycles:  2,
+		Execute: rorAExecute,
+		Mode:    Accumulator,
+	}
+
+	Instructions[0x66] = Instruction{
+		Name:    "ROR Zero Page",
+		Opcode:  0x66,
+		Bytes:   2,
+		Cycles:  5,
+		Execute: rorExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x76] = Instruction{
+		Name:    "ROR Zero Page,X",
+		Opcode:  0x76,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: rorExecute,
+		Mode:    ZeroPageX,
+	}
+	Instructions[0x6E] = Instruction{
+		Name:    "ROR Absolute",
+		Opcode:  0x6E,
+		Bytes:   3,
+		Cycles:  6,
+		Execute: rorExecute,
+		Mode:    Absolute,
+	}
+	Instructions[0x7E] = Instruction{
+		Name:    "ROR Absolute,X",
+		Opcode:  0x7E,
+		Bytes:   3,
+		Cycles:  7,
+		Execute: rorExecute,
+		Mode:    AbsoluteX,
+	}
+}
+
+func rorAExecute(cpu *CPU, _ uint16) {
+	value := cpu.A
+	carry := cpu.GetFlag(FlagC)
+	cpu.SetFlag(FlagC, (value&0x01) != 0)
+	value >>= 1
+	if carry {
+		value |= 0x80
+	}
+	cpu.A = value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func rorExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	carry := cpu.GetFlag(FlagC)
+	cpu.SetFlag(FlagC, (value&0x01) != 0)
+	value >>= 1
+	if carry {
+		value |= 0x80
+	}
+	cpu.Memory[addr] = value
+	cpu.SetFlag(FlagZ, value == 0)
+	cpu.SetFlag(FlagN, (value&0x80) != 0)
+}
+
+func initROLInstructions() {
+	Instructions[0x2A] = Instruction{
+		Name:    "ROL Accumulator",
+		Opcode:  0x2A,
+		Bytes:   1,
+		Cycles:  2,
+		Execute: rolAExecute,
+		Mode:    Accumulator,
+	}
+
+	Instructions[0x26] = Instruction{
+		Name:    "ROL Zero Page",
+		Opcode:  0x26,
+		Bytes:   2,
+		Cycles:  5,
+		Execute: rolExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x36] = Instruction{
+		Name:    "ROL Zero Page,X",
+		Opcode:  0x36,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: rolExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0x2E] = Instruction{
+		Name:    "ROL Absolute",
+		Opcode:  0x2E,
+		Bytes:   3,
+		Cycles:  6,
+		Execute: rolExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0x3E] = Instruction{
+		Name:    "ROL Absolute,X",
+		Opcode:  0x3E,
+		Bytes:   3,
+		Cycles:  7,
+		Execute: rolExecute,
+		Mode:    AbsoluteX,
+	}
+}
+
+func rolAExecute(cpu *CPU, _ uint16) {
+	value := cpu.A
+	carry := cpu.GetFlag(FlagC)
+	cpu.SetFlag(FlagC, (value&0x80) != 0)
+	value <<= 1
+	if carry {
+		value |= 0x01
+	}
+	cpu.A = value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func rolExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	carry := cpu.GetFlag(FlagC)
+	cpu.SetFlag(FlagC, (value&0x80) != 0)
+	value <<= 1
+	if carry {
+		value |= 0x01
+	}
+	cpu.Memory[addr] = value
+	cpu.SetFlag(FlagZ, value == 0)
+	cpu.SetFlag(FlagN, (value&0x80) != 0)
 }
