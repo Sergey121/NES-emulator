@@ -2115,3 +2115,146 @@ func TestCPYOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestASLOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 0A (ASL A)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0b11000001        // старший бит установлен
+				cpu.Memory[0x8000] = 0x0A // ASL A
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0b10000010 {
+					t.Errorf("Expected A = 0b10000010, got 0x%08b", cpu.A)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: 06 (ASL Zeropage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x0010] = 0b01000001 // значение в zero page
+				cpu.Memory[0x8000] = 0x06       // ASL $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				value := cpu.Memory[0x0010]
+				if value != 0b10000010 {
+					t.Errorf("Expected memory[0x10] = 0b10000010, got 0x%08b", value)
+				}
+				if cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be clear")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: 0E (ASL Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x1234] = 0b01000001 // значение в absolute
+				cpu.Memory[0x8000] = 0x0E       // ASL $1234
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				value := cpu.Memory[0x1234]
+				if value != 0b10000010 {
+					t.Errorf("Expected memory[0x1234] = 0b10000010, got 0x%08b", value)
+				}
+				if cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be clear")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestLSROpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 4A (LSR A)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0b11000001        // старший бит установлен
+				cpu.Memory[0x8000] = 0x4A // LSR A
+			},
+			assert: func(cpu *CPU) {
+				if cpu.A != 0b01100000 {
+					t.Errorf("Expected A = 0b01100000, got 0x%08b", cpu.A)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be clear")
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+			},
+		},
+		{
+			name: "Opcode: 46 (LSR Zeropage)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x0010] = 0b01000001 // значение в zero page
+				cpu.Memory[0x8000] = 0x46       // LSR $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU) {
+				value := cpu.Memory[0x0010]
+				if value != 0b00100000 {
+					t.Errorf("Expected memory[0x10] = 0b00100000, got 0x%08b", value)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be clear")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}

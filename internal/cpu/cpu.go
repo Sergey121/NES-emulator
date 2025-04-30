@@ -146,3 +146,7 @@ func (cpu *CPU) fetchIndirect() uint16 {
 func (cpu *CPU) fetchImplied() uint16 {
 	return 0
 }
+
+func (cpu *CPU) fetchAccumulator() uint16 {
+	return 0
+}

@@ -17,6 +17,7 @@ const (
 	IndirectX
 	IndirectY
 	Relative
+	Accumulator
 )
 
 type Instruction struct {
@@ -47,6 +48,8 @@ func init() {
 	initCMPInstructions()
 	initCPXInstructions()
 	initCPYInstructions()
+	initASLInstructions()
+	initLSRInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -74,6 +77,8 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 		addr = c.fetchIndirect()
 	case Implied:
 		addr = c.fetchImplied()
+	case Accumulator:
+		addr = c.fetchAccumulator()
 
 	default:
 		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
@@ -1149,4 +1154,133 @@ func cpyExecute(cpu *CPU, addr uint16) {
 	cpu.SetFlag(FlagC, cpu.Y >= value)
 	cpu.SetFlag(FlagZ, byte(result&0xFF) == 0)
 	cpu.SetFlag(FlagN, (result&0x80) != 0)
+}
+
+func initASLInstructions() {
+	Instructions[0x0A] = Instruction{
+		Name:    "ASL Accumulator",
+		Opcode:  0x0A,
+		Bytes:   1,
+		Cycles:  2,
+		Execute: aslAExecute,
+		Mode:    Accumulator,
+	}
+
+	Instructions[0x06] = Instruction{
+		Name:    "ASL Zero Page",
+		Opcode:  0x06,
+		Bytes:   2,
+		Cycles:  5,
+		Execute: aslExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x16] = Instruction{
+		Name:    "ASL Zero Page,X",
+		Opcode:  0x16,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: aslExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0x0E] = Instruction{
+		Name:    "ASL Absolute",
+		Opcode:  0x0E,
+		Bytes:   3,
+		Cycles:  6,
+		Execute: aslExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0x1E] = Instruction{
+		Name:    "ASL Absolute,X",
+		Opcode:  0x1E,
+		Bytes:   3,
+		Cycles:  7,
+		Execute: aslExecute,
+		Mode:    AbsoluteX,
+	}
+}
+
+func aslAExecute(cpu *CPU, _ uint16) {
+	value := cpu.A
+	cpu.SetFlag(FlagC, (value&0x80) != 0)
+	value <<= 1
+	cpu.A = value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+}
+
+func aslExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.SetFlag(FlagC, (value&0x80) != 0)
+	value <<= 1
+	cpu.Memory[addr] = value
+	cpu.SetFlag(FlagZ, value == 0)
+	cpu.SetFlag(FlagN, (value&0x80) != 0)
+}
+
+func initLSRInstructions() {
+	Instructions[0x4A] = Instruction{
+		Name:    "LSR Accumulator",
+		Opcode:  0x4A,
+		Bytes:   1,
+		Cycles:  2,
+		Execute: lsrAExecute,
+		Mode:    Accumulator,
+	}
+
+	Instructions[0x46] = Instruction{
+		Name:    "LSR Zero Page",
+		Opcode:  0x46,
+		Bytes:   2,
+		Cycles:  5,
+		Execute: lsrExecute,
+		Mode:    ZeroPage,
+	}
+
+	Instructions[0x56] = Instruction{
+		Name:    "LSR Zero Page,X",
+		Opcode:  0x56,
+		Bytes:   2,
+		Cycles:  6,
+		Execute: lsrExecute,
+		Mode:    ZeroPageX,
+	}
+
+	Instructions[0x4E] = Instruction{
+		Name:    "LSR Absolute",
+		Opcode:  0x4E,
+		Bytes:   3,
+		Cycles:  6,
+		Execute: lsrExecute,
+		Mode:    Absolute,
+	}
+
+	Instructions[0x5E] = Instruction{
+		Name:    "LSR Absolute,X",
+		Opcode:  0x5E,
+		Bytes:   3,
+		Cycles:  7,
+		Execute: lsrExecute,
+	}
+}
+
+func lsrAExecute(cpu *CPU, _ uint16) {
+	value := cpu.A
+	cpu.SetFlag(FlagC, (value&0x01) != 0)
+	value >>= 1
+	cpu.A = value
+	cpu.SetFlag(FlagZ, cpu.A == 0)
+	cpu.SetFlag(FlagN, false)
+}
+
+func lsrExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.SetFlag(FlagC, (value&0x01) != 0)
+	value >>= 1
+	cpu.Memory[addr] = value
+	cpu.SetFlag(FlagZ, value == 0)
+	cpu.SetFlag(FlagN, false)
 }
