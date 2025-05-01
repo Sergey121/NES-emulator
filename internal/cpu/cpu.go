@@ -55,6 +55,33 @@ func (c *CPU) GetFlag(flag byte) bool {
 	return c.P&flag != 0
 }
 
+func (c *CPU) SetStatus(value byte) {
+	c.P = value | 0x20
+}
+
+func (c *CPU) Push(value byte) {
+	c.Memory[0x0100+uint16(c.SP)] = value
+	c.SP--
+}
+
+func (c *CPU) Push16(value uint16) {
+	hi := byte(value >> 8)
+	lo := byte(value & 0x00FF)
+	c.Push(hi)
+	c.Push(lo)
+}
+
+func (c *CPU) Pull() byte {
+	c.SP++
+	return c.Memory[0x0100+uint16(c.SP)]
+}
+
+func (c *CPU) Pull16() uint16 {
+	lo := uint16(c.Pull())
+	hi := uint16(c.Pull())
+	return (hi << 8) | lo
+}
+
 func (c *CPU) Execute() {
 	opcode := c.Memory[c.PC]
 	inst, ok := Instructions[opcode]
@@ -66,7 +93,10 @@ func (c *CPU) Execute() {
 	addr := inst.GetAddress(c)
 
 	inst.Execute(c, addr)
-	c.PC += uint16(inst.Bytes)
+
+	if !inst.ModifiesPC {
+		c.PC += uint16(inst.Bytes)
+	}
 }
 
 func (c *CPU) fetchImediate() uint16 {

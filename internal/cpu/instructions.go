@@ -21,12 +21,13 @@ const (
 )
 
 type Instruction struct {
-	Name    string
-	Opcode  byte
-	Bytes   int
-	Cycles  int
-	Mode    AddressingMode
-	Execute func(cpu *CPU, addr uint16)
+	Name       string
+	Opcode     byte
+	Bytes      int
+	Cycles     int
+	Mode       AddressingMode
+	Execute    func(cpu *CPU, addr uint16)
+	ModifiesPC bool
 }
 
 var Instructions = map[byte]Instruction{}
@@ -52,6 +53,7 @@ func init() {
 	initLSRInstructions()
 	initRORInstructions()
 	initROLInstructions()
+	initRTIInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1429,4 +1431,20 @@ func rolExecute(cpu *CPU, addr uint16) {
 	cpu.Memory[addr] = value
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, (value&0x80) != 0)
+}
+
+func initRTIInstructions() {
+	Instructions[0x40] = Instruction{
+		Name:   "RTI",
+		Opcode: 0x40,
+		Bytes:  1,
+		Cycles: 6,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			status := cpu.Pull()
+			cpu.SetStatus(status)
+			cpu.PC = cpu.Pull16()
+		},
+		ModifiesPC: true,
+	}
 }

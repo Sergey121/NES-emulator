@@ -2424,3 +2424,38 @@ func TestROLOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestRTIOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 40 (RTI)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				// эмуляция вызова прерывания: на стек положили статус и PC
+				cpu.Push16(0x1234)      // PC
+				cpu.Push(FlagZ | FlagC) // статус-регистр
+
+				cpu.Memory[0x8000] = 0x40 // RTI
+			},
+			assert: func(cpu *CPU) {
+				if cpu.PC != 0x1234 {
+					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if !cpu.GetFlag(FlagU) {
+					t.Errorf("Expected Unused flag to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
