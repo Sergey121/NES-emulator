@@ -56,6 +56,7 @@ func init() {
 	initRTIInstructions()
 	initRTSInstructions()
 	initJSRInstructions()
+	initBRKInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1476,6 +1477,29 @@ func initJSRInstructions() {
 			// Push address of last byte of JSR instruction (PC+2)
 			cpu.Push16(cpu.PC + 2)
 			cpu.PC = addr
+		},
+		ModifiesPC: true,
+	}
+}
+
+func initBRKInstructions() {
+	Instructions[0x00] = Instruction{
+		Name:   "BRK",
+		Opcode: 0x00,
+		Bytes:  2, // формально 2 байта
+		Cycles: 7,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			// Push PC + 2 на стек (указатель на следующую инструкцию)
+			cpu.Push16(cpu.PC + 2)
+
+			// Сохраняем статус-регистр с установленным флагом B и U
+			cpu.Push(cpu.P | FlagB | FlagU)
+
+			// Переход по адресу из вектора прерываний (0xFFFE/F)
+			lo := cpu.Memory[0xFFFE]
+			hi := cpu.Memory[0xFFFF]
+			cpu.PC = uint16(lo) | uint16(hi)<<8
 		},
 		ModifiesPC: true,
 	}

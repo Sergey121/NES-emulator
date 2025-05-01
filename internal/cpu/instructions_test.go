@@ -2543,3 +2543,46 @@ func TestJSROpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestBRKOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 00 (BRK)",
+			init: func(cpu *CPU) {
+				// Устанавливаем Reset-вектор на 0x8000 и делаем Reset
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				// Кладём инструкцию BRK по адресу 0x8000
+				cpu.Memory[0x8000] = 0x00 // BRK
+				cpu.Memory[0x8001] = 0xFF // фиктивный байт (игнорируется)
+
+				// Вектор прерываний BRK
+				cpu.Memory[0xFFFE] = 0x34
+				cpu.Memory[0xFFFF] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				// PC должен быть установлен из вектора
+				if cpu.PC != 0x1234 {
+					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
+				}
+
+				// Снимаем статус-регистр с флагами
+				status := cpu.Pull()
+				expectedStatus := (cpu.P | FlagB | FlagU)
+				if status != expectedStatus {
+					t.Errorf("Expected status = 0x%02X, got 0x%02X", expectedStatus, status)
+				}
+
+				// Снимаем адрес возврата
+				returnAddr := cpu.Pull16()
+				if returnAddr != 0x8002 {
+					t.Errorf("Expected return address = 0x8002, got 0x%04X", returnAddr)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
