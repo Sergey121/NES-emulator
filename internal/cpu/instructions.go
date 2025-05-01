@@ -54,6 +54,8 @@ func init() {
 	initRORInstructions()
 	initROLInstructions()
 	initRTIInstructions()
+	initRTSInstructions()
+	initJSRInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1444,6 +1446,36 @@ func initRTIInstructions() {
 			status := cpu.Pull()
 			cpu.SetStatus(status)
 			cpu.PC = cpu.Pull16()
+		},
+		ModifiesPC: true,
+	}
+}
+
+func initRTSInstructions() {
+	Instructions[0x60] = Instruction{
+		Name:   "RTS",
+		Opcode: 0x60,
+		Bytes:  1,
+		Cycles: 6,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.PC = cpu.Pull16() + 1
+		},
+		ModifiesPC: true,
+	}
+}
+
+func initJSRInstructions() {
+	Instructions[0x20] = Instruction{
+		Name:   "JSR",
+		Opcode: 0x20,
+		Bytes:  3,
+		Cycles: 6,
+		Mode:   Absolute,
+		Execute: func(cpu *CPU, addr uint16) {
+			// Push address of last byte of JSR instruction (PC+2)
+			cpu.Push16(cpu.PC + 2)
+			cpu.PC = addr
 		},
 		ModifiesPC: true,
 	}

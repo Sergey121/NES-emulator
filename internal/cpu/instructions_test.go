@@ -2459,3 +2459,87 @@ func TestRTIOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestRTSOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 60 (RTS)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				// Подделываем возвратный адрес на стеке
+				cpu.Push16(0x1233) // Возврат должен быть на 0x1234 (прибавляется 1)
+
+				cpu.Memory[0x8000] = 0x60 // RTS
+			},
+			assert: func(cpu *CPU) {
+				if cpu.PC != 0x1234 {
+					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestJSROpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 20 (JSR Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x8000] = 0x20 // JSR $1234
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.PC != 0x1234 {
+					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
+				}
+				retAddr := cpu.Pull16()
+				if retAddr != 0x8002 {
+					t.Errorf("Expected return address = 0x8002, got 0x%04X", retAddr)
+				}
+			},
+		},
+		{
+			name: "Opcode: 20 + 60 (JSR + RTS)",
+			init: func(cpu *CPU) {
+				// Установим Reset Vector на $8000
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				// Основной код
+				cpu.Memory[0x8000] = 0x20 // JSR $9000
+				cpu.Memory[0x8001] = 0x00
+				cpu.Memory[0x8002] = 0x90
+
+				cpu.Memory[0x8003] = 0xA9 // LDA #$42 (ожидаемая инструкция после возврата)
+				cpu.Memory[0x8004] = 0x42
+
+				// Подпрограмма по адресу $9000
+				cpu.Memory[0x9000] = 0x60 // RTS
+			},
+			assert: func(cpu *CPU) {
+				cpu.Execute()
+				cpu.Execute()
+
+				if cpu.A != 0x42 {
+					t.Errorf("Expected A = 0x42, got 0x%02X", cpu.A)
+				}
+				if cpu.PC != 0x8005 {
+					t.Errorf("Expected PC = 0x8005 after RTS and LDA, got 0x%04X", cpu.PC)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
