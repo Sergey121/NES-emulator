@@ -7,7 +7,7 @@ import (
 type OpcodeTest struct {
 	name   string
 	init   func(*CPU)
-	assert func(*CPU)
+	assert func(*CPU, *testing.T)
 }
 
 func runTests(t *testing.T, tests []OpcodeTest) {
@@ -20,7 +20,7 @@ func runTests(t *testing.T, tests []OpcodeTest) {
 			cpuInstance.Execute()
 
 			// Проверяем результат
-			test.assert(cpuInstance)
+			test.assert(cpuInstance, t)
 		})
 	}
 }
@@ -39,7 +39,7 @@ func TestLDAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8000] = 0xA9 // LDA Immediate
 				cpuInstance.Memory[0x8001] = 0xC0
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0xC0 {
 					t.Errorf("Expected A = 0xC0, got 0x%02X", cpuInstance.A)
 				}
@@ -66,7 +66,7 @@ func TestLDAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8000] = 0xA5 // LDA Zero Page
 				cpuInstance.Memory[0x8001] = 0x42
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0xC0 {
 					t.Errorf("Expected A = 0xC0, got 0x%02X", cpuInstance.A)
 				}
@@ -96,7 +96,7 @@ func TestLDAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8000] = 0xB5 // LDA ZeroPage,X
 				cpuInstance.Memory[0x8001] = 0xF0
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0xC0 {
 					t.Errorf("Expected A = 0xC0, got 0x%02X", cpuInstance.A)
 				}
@@ -126,7 +126,7 @@ func TestLDAOpcodes(t *testing.T) {
 				// Результат адресации: (0xF0 + 0x20) & 0xFF = 0x10
 				cpuInstance.Memory[0x10] = 0xAB // Значение, которое должно загрузиться в A
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0xAB {
 					t.Errorf("Expected A = 0xAB, got 0x%02X", cpuInstance.A)
 				}
@@ -154,7 +154,7 @@ func TestLDAOpcodes(t *testing.T) {
 				// В памяти по адресу 0x1234 кладем значение, которое LDA должна загрузить
 				cpuInstance.Memory[0x1234] = 0x99
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0x99 {
 					t.Errorf("Expected A = 0x99, got 0x%02X", cpuInstance.A)
 				}
@@ -185,7 +185,7 @@ func TestLDAOpcodes(t *testing.T) {
 				// В памяти по адресу 0x1235 (0x1234 + X) кладем значение, которое LDA должна загрузить
 				cpuInstance.Memory[0x1235] = 0x99
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0x99 {
 					t.Errorf("Expected A = 0x99, got 0x%02X", cpuInstance.A)
 				}
@@ -216,7 +216,7 @@ func TestLDAOpcodes(t *testing.T) {
 				// В памяти по адресу 0x1235 (0x1234 + Y) кладем значение, которое LDA должна загрузить
 				cpuInstance.Memory[0x1235] = 0x99
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0x99 {
 					t.Errorf("Expected A = 0x99, got 0x%02X", cpuInstance.A)
 				}
@@ -250,7 +250,7 @@ func TestLDAOpcodes(t *testing.T) {
 				// По адресу 0x1234 кладем значение, которое LDA должна загрузить
 				cpuInstance.Memory[0x1234] = 0x99
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0x99 {
 					t.Errorf("Expected A = 0x99, got 0x%02X", cpuInstance.A)
 				}
@@ -282,7 +282,7 @@ func TestLDAOpcodes(t *testing.T) {
 				// В память по адресу 0x1235 (0x1234 + Y) кладем значение
 				cpuInstance.Memory[0x1235] = 0x99
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.A != 0x99 {
 					t.Errorf("Expected A = 0x99, got 0x%02X", cpuInstance.A)
 				}
@@ -371,7 +371,7 @@ func TestSTAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8001] = 0x20
 
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.Memory[0x0020] != 0x99 {
 					t.Errorf("Expected memory at 0x0020 to be 0x99, got 0x%02X", cpuInstance.Memory[0x0020])
 				}
@@ -395,7 +395,7 @@ func TestSTAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8000] = 0x95
 				cpuInstance.Memory[0x8001] = 0x20
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.Memory[0x0030] != 0x99 {
 					t.Errorf("Expected memory at 0x0030 to be 0x99, got 0x%02X", cpuInstance.Memory[0x0030])
 				}
@@ -417,7 +417,7 @@ func TestSTAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8001] = 0x34
 				cpuInstance.Memory[0x8002] = 0x12
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.Memory[0x1234] != 0x42 {
 					t.Errorf("Expected memory at 0x1234 to be 0x42, got 0x%02X", cpuInstance.Memory[0x1234])
 				}
@@ -442,7 +442,7 @@ func TestSTAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8001] = 0x34
 				cpuInstance.Memory[0x8002] = 0x12
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.Memory[0x1235] != 0x42 {
 					t.Errorf("Expected memory at 0x1235 to be 0x42, got 0x%02X", cpuInstance.Memory[0x1235])
 				}
@@ -467,7 +467,7 @@ func TestSTAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x8001] = 0x34
 				cpuInstance.Memory[0x8002] = 0x12
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.Memory[0x1235] != 0x42 {
 					t.Errorf("Expected memory at 0x1235 to be 0x42, got 0x%02X", cpuInstance.Memory[0x1235])
 				}
@@ -495,7 +495,7 @@ func TestSTAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x14] = 0x34 // low byte
 				cpuInstance.Memory[0x15] = 0x12 // high byte
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.Memory[0x1234] != 0x42 {
 					t.Errorf("Expected memory at 0x1234 to be 0x42, got 0x%02X", cpuInstance.Memory[0x1234])
 				}
@@ -523,7 +523,7 @@ func TestSTAOpcodes(t *testing.T) {
 				cpuInstance.Memory[0x0010] = 0x34 // low byte
 				cpuInstance.Memory[0x0011] = 0x12 // high byte
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.Memory[0x1235] != 0x42 {
 					t.Errorf("Expected memory at 0x1235 to be 0x42, got 0x%02X", cpuInstance.Memory[0x1235])
 				}
@@ -572,7 +572,7 @@ func TestLDXOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xA2
 				cpu.Memory[0x8001] = 0x55
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.X != 0x55 {
 					t.Errorf("Expected X = 0x55, got 0x%02X", cpu.X)
 				}
@@ -589,7 +589,7 @@ func TestLDXOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xA6
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.X != 0x66 {
 					t.Errorf("Expected X = 0x66, got %02X", cpu.X)
 				}
@@ -607,7 +607,7 @@ func TestLDXOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xB6
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.X != 0x77 {
 					t.Errorf("Expected X = 0x77, got %02X", cpu.X)
 				}
@@ -625,7 +625,7 @@ func TestLDXOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.X != 0x88 {
 					t.Errorf("Expected X = 0x88, got %02X", cpu.X)
 				}
@@ -644,7 +644,7 @@ func TestLDXOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.X != 0x99 {
 					t.Errorf("Expected X = 0x99, got %02X", cpu.X)
 				}
@@ -692,7 +692,7 @@ func TestLDYOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xA0
 				cpu.Memory[0x8001] = 0x77
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Y != 0x77 {
 					t.Errorf("Expected Y = 0x77, got 0x%02X", cpu.Y)
 				}
@@ -709,7 +709,7 @@ func TestLDYOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xA4
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Y != 0x88 {
 					t.Errorf("Expected Y = 0x88, got 0x%02X", cpu.Y)
 				}
@@ -727,7 +727,7 @@ func TestLDYOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xB4
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Y != 0x99 {
 					t.Errorf("Expected Y = 0x99, got 0x%02X", cpu.Y)
 				}
@@ -745,7 +745,7 @@ func TestLDYOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Y != 0xAB {
 					t.Errorf("Expected Y = 0xAB, got 0x%02X", cpu.Y)
 				}
@@ -764,7 +764,7 @@ func TestLDYOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Y != 0xCD {
 					t.Errorf("Expected Y = 0xCD, got 0x%02X", cpu.Y)
 				}
@@ -813,7 +813,7 @@ func TestSTXOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x86
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Memory[0x0010] != 0x55 {
 					t.Errorf("Expected memory at 0x0010 to be 0x55, got 0x%02X", cpu.Memory[0x0010])
 				}
@@ -831,7 +831,7 @@ func TestSTXOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x96
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Memory[0x0014] != 0x66 {
 					t.Errorf("Expected memory at 0x0014 to be 0x66, got 0x%02X", cpu.Memory[0x0014])
 				}
@@ -849,7 +849,7 @@ func TestSTXOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Memory[0x1234] != 0x77 {
 					t.Errorf("Expected memory at 0x1234 to be 0x77, got 0x%02X", cpu.Memory[0x1234])
 				}
@@ -900,7 +900,7 @@ func TestSTYOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x84
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Memory[0x0020] != 0x11 {
 					t.Errorf("Expected memory at 0x0020 to be 0x11, got 0x%02X", cpu.Memory[0x0020])
 				}
@@ -918,7 +918,7 @@ func TestSTYOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x94
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Memory[0x0015] != 0x22 {
 					t.Errorf("Expected memory at 0x0015 to be 0x22, got 0x%02X", cpu.Memory[0x0015])
 				}
@@ -936,7 +936,7 @@ func TestSTYOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Memory[0x1234] != 0x33 {
 					t.Errorf("Expected memory at 0x1234 to be 0x33, got 0x%02X", cpu.Memory[0x1234])
 				}
@@ -986,7 +986,7 @@ func TestTransferOpcodes(t *testing.T) {
 				cpu.A = 0x00              // чтобы тестировать установку флага Zero
 				cpu.Memory[0x8000] = 0xAA // TAX
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.X != 0x00 {
 					t.Errorf("TAX failed: expected X = 0x00, got 0x%02X", cpu.X)
 				}
@@ -1008,7 +1008,7 @@ func TestTransferOpcodes(t *testing.T) {
 				cpu.A = 0x80              // чтобы тестировать установку флага Negative
 				cpu.Memory[0x8000] = 0xA8 // TAY
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.Y != 0x80 {
 					t.Errorf("TAY failed: expected Y = 0x80, got 0x%02X", cpu.Y)
 				}
@@ -1030,7 +1030,7 @@ func TestTransferOpcodes(t *testing.T) {
 				cpu.SP = 0xFF             // чтобы тестировать установку флага Negative
 				cpu.Memory[0x8000] = 0xBA // TSX
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.X != 0xFF {
 					t.Errorf("TSX failed: expected X = 0xFF, got 0x%02X", cpu.X)
 				}
@@ -1052,7 +1052,7 @@ func TestTransferOpcodes(t *testing.T) {
 				cpu.X = 0x00              // проверим Zero флаг
 				cpu.Memory[0x8000] = 0x8A // TXA
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x00 {
 					t.Errorf("TXA failed: expected A = 0x00, got 0x%02X", cpu.A)
 				}
@@ -1074,7 +1074,7 @@ func TestTransferOpcodes(t *testing.T) {
 				cpu.X = 0xFF              // чтобы тестировать установку флага Negative
 				cpu.Memory[0x8000] = 0x9A // TXS
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.SP != 0xFF {
 					t.Errorf("TXS failed: expected SP = 0xFF, got 0x%02X", cpu.SP)
 				}
@@ -1096,7 +1096,7 @@ func TestTransferOpcodes(t *testing.T) {
 				cpu.Y = 0xFF              // тестируем Negative флаг
 				cpu.Memory[0x8000] = 0x98 // TYA
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xFF {
 					t.Errorf("TYA failed: expected A = 0xFF, got 0x%02X", cpu.A)
 				}
@@ -1127,7 +1127,7 @@ func TestFlagOpcodes(t *testing.T) {
 
 				cpuInstance.Memory[0x8000] = 0x18 // CLC
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.GetFlag(FlagC) {
 					t.Errorf("Expected Carry flag to be cleared")
 				}
@@ -1145,7 +1145,7 @@ func TestFlagOpcodes(t *testing.T) {
 
 				cpuInstance.Memory[0x8000] = 0x38 // SEC
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if !cpuInstance.GetFlag(FlagC) {
 					t.Errorf("Expected Carry flag to be set")
 				}
@@ -1162,7 +1162,7 @@ func TestFlagOpcodes(t *testing.T) {
 
 				cpuInstance.Memory[0x8000] = 0xD8 // CLD
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.GetFlag(FlagD) {
 					t.Errorf("Expected Decimal Mode flag to be cleared")
 				}
@@ -1179,7 +1179,7 @@ func TestFlagOpcodes(t *testing.T) {
 
 				cpuInstance.Memory[0x8000] = 0xF8 // SED
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if !cpuInstance.GetFlag(FlagD) {
 					t.Errorf("Expected Decimal Mode flag to be set")
 				}
@@ -1196,7 +1196,7 @@ func TestFlagOpcodes(t *testing.T) {
 
 				cpuInstance.Memory[0x8000] = 0x58 // CLI
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.GetFlag(FlagI) {
 					t.Errorf("Expected Interrupt Disable flag to be cleared")
 				}
@@ -1213,7 +1213,7 @@ func TestFlagOpcodes(t *testing.T) {
 
 				cpuInstance.Memory[0x8000] = 0x78 // SEI
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if !cpuInstance.GetFlag(FlagI) {
 					t.Errorf("Expected Interrupt Disable flag to be set")
 				}
@@ -1230,7 +1230,7 @@ func TestFlagOpcodes(t *testing.T) {
 
 				cpuInstance.Memory[0x8000] = 0xB8 // CLV
 			},
-			assert: func(cpuInstance *CPU) {
+			assert: func(cpuInstance *CPU, t *testing.T) {
 				if cpuInstance.GetFlag(FlagV) {
 					t.Errorf("Expected Overflow flag to be cleared")
 				}
@@ -1254,7 +1254,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x69
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1272,7 +1272,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x65
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1291,7 +1291,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x75
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1310,7 +1310,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1330,7 +1330,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1350,7 +1350,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1373,7 +1373,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x61
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1396,7 +1396,7 @@ func TestADCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x71
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1448,7 +1448,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xE9 // SBC #imm
 				cpu.Memory[0x8001] = 0x10 // вычитаем 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x40 {
 					t.Errorf("Expected A = 0x40, got 0x%02X", cpu.A)
 				}
@@ -1473,7 +1473,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xE5
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x20 {
 					t.Errorf("Expected A = 0x20, got 0x%02X", cpu.A)
 				}
@@ -1493,7 +1493,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xF5
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x10 {
 					t.Errorf("Expected A = 0x10, got 0x%02X", cpu.A)
 				}
@@ -1513,7 +1513,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x20 {
 					t.Errorf("Expected A = 0x20, got 0x%02X", cpu.A)
 				}
@@ -1534,7 +1534,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x10 {
 					t.Errorf("Expected A = 0x10, got 0x%02X", cpu.A)
 				}
@@ -1555,7 +1555,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x10 {
 					t.Errorf("Expected A = 0x10, got 0x%02X", cpu.A)
 				}
@@ -1577,7 +1577,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xE1
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1599,7 +1599,7 @@ func TestSBCOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xF1
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x30 {
 					t.Errorf("Expected A = 0x30, got 0x%02X", cpu.A)
 				}
@@ -1623,7 +1623,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x29 // AND #imm
 				cpu.Memory[0x8001] = 0xCC // AND with 0xCC
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1641,7 +1641,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x25 // AND Zero Page
 				cpu.Memory[0x8001] = 0x25 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1661,7 +1661,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x25 // Operand
 				cpu.Memory[0x8002] = 0x00
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1680,7 +1680,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34 // Operand
 				cpu.Memory[0x8002] = 0x12 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1700,7 +1700,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34 // Operand
 				cpu.Memory[0x8002] = 0x12 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1721,7 +1721,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34 // Operand
 				cpu.Memory[0x8002] = 0x12 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1743,7 +1743,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x21 // AND (Indirect,X)
 				cpu.Memory[0x8001] = 0x20 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1765,7 +1765,7 @@ func TestANDOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x31 // AND (Indirect),Y
 				cpu.Memory[0x8001] = 0x20 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xCC {
 					t.Errorf("Expected A = 0xCC, got 0x%02X", cpu.A)
 				}
@@ -1788,7 +1788,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x49 // EOR #imm
 				cpu.Memory[0x8001] = 0x0F
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0xF0 {
 					t.Errorf("Expected A = 0xF0, got 0x%02X", cpu.A)
 				}
@@ -1809,7 +1809,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x45 // EOR Zero Page
 				cpu.Memory[0x8001] = 0x25 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x33 {
 					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
 				}
@@ -1828,7 +1828,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x55 // EOR ZeroPage,X
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x55 {
 					t.Errorf("Expected A = 0x55, got 0x%02X", cpu.A)
 				}
@@ -1847,7 +1847,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34 // Operand
 				cpu.Memory[0x8002] = 0x12 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x33 {
 					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
 				}
@@ -1867,7 +1867,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34 // Operand
 				cpu.Memory[0x8002] = 0x12 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x33 {
 					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
 				}
@@ -1887,7 +1887,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34 // Operand
 				cpu.Memory[0x8002] = 0x12 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x33 {
 					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
 				}
@@ -1909,7 +1909,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x41 // EOR (Indirect,X)
 				cpu.Memory[0x8001] = 0x20 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x33 {
 					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
 				}
@@ -1931,7 +1931,7 @@ func TestEOROpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x51 // EOR (Indirect),Y
 				cpu.Memory[0x8001] = 0x20 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x33 {
 					t.Errorf("Expected A = 0x33, got 0x%02X", cpu.A)
 				}
@@ -1954,7 +1954,7 @@ func TestORAOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x09 // ORA #imm
 				cpu.Memory[0x8001] = 0x01
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x11 {
 					t.Errorf("Expected A = 0x11, got 0x%02X", cpu.A)
 				}
@@ -1973,7 +1973,7 @@ func TestORAOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x15 // ORA ZeroPage,X
 				cpu.Memory[0x8001] = 0x20
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0x81 {
 					t.Errorf("Expected A = 0x81, got 0x%02X", cpu.A)
 				}
@@ -1997,7 +1997,7 @@ func TestCMPOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xC9
 				cpu.Memory[0x8001] = 0x40
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if !cpu.GetFlag(FlagC) {
 					t.Errorf("Expected Carry flag to be set")
 				}
@@ -2021,7 +2021,7 @@ func TestCMPOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xC5 // CMP Zero Page
 				cpu.Memory[0x8001] = 0x25 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if !cpu.GetFlag(FlagZ) {
 					t.Errorf("Expected Zero flag to be set")
 				}
@@ -2045,7 +2045,7 @@ func TestCPXOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xE0 // CPX #imm
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if !cpu.GetFlag(FlagZ) {
 					t.Errorf("Expected Zero flag to be set")
 				}
@@ -2063,7 +2063,7 @@ func TestCPXOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xE4 // CPX Zero Page
 				cpu.Memory[0x8001] = 0x25 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if !cpu.GetFlag(FlagZ) {
 					t.Errorf("Expected Zero flag to be set")
 				}
@@ -2087,7 +2087,7 @@ func TestCPYOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xC0 // CPY #imm
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if !cpu.GetFlag(FlagZ) {
 					t.Errorf("Expected Zero flag to be set")
 				}
@@ -2105,7 +2105,7 @@ func TestCPYOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0xC4 // CPY Zero Page
 				cpu.Memory[0x8001] = 0x25 // Operand
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if !cpu.GetFlag(FlagZ) {
 					t.Errorf("Expected Zero flag to be set")
 				}
@@ -2128,7 +2128,7 @@ func TestASLOpcodes(t *testing.T) {
 				cpu.A = 0b11000001        // старший бит установлен
 				cpu.Memory[0x8000] = 0x0A // ASL A
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0b10000010 {
 					t.Errorf("Expected A = 0b10000010, got 0x%08b", cpu.A)
 				}
@@ -2154,7 +2154,7 @@ func TestASLOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x06       // ASL $10
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				value := cpu.Memory[0x0010]
 				if value != 0b10000010 {
 					t.Errorf("Expected memory[0x10] = 0b10000010, got 0x%08b", value)
@@ -2182,7 +2182,7 @@ func TestASLOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				value := cpu.Memory[0x1234]
 				if value != 0b10000010 {
 					t.Errorf("Expected memory[0x1234] = 0b10000010, got 0x%08b", value)
@@ -2215,7 +2215,7 @@ func TestLSROpcodes(t *testing.T) {
 				cpu.A = 0b11000001        // старший бит установлен
 				cpu.Memory[0x8000] = 0x4A // LSR A
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0b01100000 {
 					t.Errorf("Expected A = 0b01100000, got 0x%08b", cpu.A)
 				}
@@ -2241,7 +2241,7 @@ func TestLSROpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x46       // LSR $10
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				value := cpu.Memory[0x0010]
 				if value != 0b00100000 {
 					t.Errorf("Expected memory[0x10] = 0b00100000, got 0x%08b", value)
@@ -2271,7 +2271,7 @@ func TestROROpcodes(t *testing.T) {
 				cpu.A = 0b11000001        // старший бит установлен
 				cpu.Memory[0x8000] = 0x6A // ROR A
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0b01100000 {
 					t.Errorf("Expected A = 0b01100000, got 0x%08b", cpu.A)
 				}
@@ -2298,7 +2298,7 @@ func TestROROpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x66       // ROR $10
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				value := cpu.Memory[0x0010]
 				if value != 0b10100000 {
 					t.Errorf("Expected memory[0x10] = 0b10100000, got 0x%08b", value)
@@ -2328,7 +2328,7 @@ func TestROLOpcodes(t *testing.T) {
 				cpu.A = 0b11000001        // старший бит установлен
 				cpu.Memory[0x8000] = 0x2A // ROL A
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.A != 0b10000010 {
 					t.Errorf("Expected A = 0b10000010, got 0x%08b", cpu.A)
 				}
@@ -2355,7 +2355,7 @@ func TestROLOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x26       // ROL $10
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				value := cpu.Memory[0x0010]
 				if value != 0b10000011 {
 					t.Errorf("Expected memory[0x10] = 0b10000011, got 0x%08b", value)
@@ -2381,7 +2381,7 @@ func TestROLOpcodes(t *testing.T) {
 				cpu.Memory[0x8000] = 0x36       // ROL $10,X
 				cpu.Memory[0x8001] = 0x10
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				value := cpu.Memory[0x0020] // после сдвига в адрес $30
 				if value != 0b10000011 {
 					t.Errorf("Expected memory[0x30] = 0b10000011, got 0x%08b", value)
@@ -2407,7 +2407,7 @@ func TestROLOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x30
 				cpu.Memory[0x8002] = 0x00
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				value := cpu.Memory[0x0030]
 				if value != 0b10000011 {
 					t.Errorf("Expected memory[0x30] = 0b10000011, got 0x%08b", value)
@@ -2440,7 +2440,7 @@ func TestRTIOpcodes(t *testing.T) {
 
 				cpu.Memory[0x8000] = 0x40 // RTI
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.PC != 0x1234 {
 					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
 				}
@@ -2474,7 +2474,7 @@ func TestRTSOpcodes(t *testing.T) {
 
 				cpu.Memory[0x8000] = 0x60 // RTS
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.PC != 0x1234 {
 					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
 				}
@@ -2498,7 +2498,7 @@ func TestJSROpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.PC != 0x1234 {
 					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
 				}
@@ -2527,7 +2527,7 @@ func TestJSROpcodes(t *testing.T) {
 				// Подпрограмма по адресу $9000
 				cpu.Memory[0x9000] = 0x60 // RTS
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				cpu.Execute()
 				cpu.Execute()
 
@@ -2562,7 +2562,7 @@ func TestBRKOpcodes(t *testing.T) {
 				cpu.Memory[0xFFFE] = 0x34
 				cpu.Memory[0xFFFF] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				// PC должен быть установлен из вектора
 				if cpu.PC != 0x1234 {
 					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
@@ -2604,7 +2604,7 @@ func TestJMPOpcodes(t *testing.T) {
 				cpu.Memory[0x1234] = 0x40
 				cpu.Memory[0x1235] = 0x80
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.PC != 0x8040 {
 					t.Errorf("Expected PC = 0x8040, got 0x%04X", cpu.PC)
 				}
@@ -2630,7 +2630,7 @@ func TestJMPOpcodes(t *testing.T) {
 				// А вот здесь то, что "ожидается логично", но не будет использовано
 				cpu.Memory[0x3100] = 0x50
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				expected := uint16(0x4080)
 				if cpu.PC != expected {
 					t.Errorf("Expected PC = 0x%04X due to page boundary bug, got 0x%04X", expected, cpu.PC)
@@ -2648,9 +2648,147 @@ func TestJMPOpcodes(t *testing.T) {
 				cpu.Memory[0x8001] = 0x34
 				cpu.Memory[0x8002] = 0x12
 			},
-			assert: func(cpu *CPU) {
+			assert: func(cpu *CPU, t *testing.T) {
 				if cpu.PC != 0x1234 {
 					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestBEQOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: F0 (BEQ) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				// Устанавливаем флаг Z
+				cpu.SetFlag(FlagZ, true)
+
+				cpu.Memory[0x80FE] = 0xF0 // BEQ
+				cpu.Memory[0x80FF] = 0x00 // offset = +1 (0x8100)
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8100 {
+					t.Errorf("Expected PC = 0x8100, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 2+2 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: F0 (BEQ) same page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, true)
+
+				// PC начнётся с 0x8000, переход вперёд на 0x8002 + 2 = 0x8004
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0xF0 // BEQ
+				cpu.Memory[0x8001] = 0x02 // смещение +2
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8004 {
+					t.Errorf("Expected PC = 0x8004, got 0x%04X", cpu.PC)
+				}
+			},
+		},
+		{
+			name: "Opcode: F0 (BEQ) no branch when Z flag is clear",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				// Сбрасываем флаг Z (переход не должен произойти)
+				cpu.SetFlag(FlagZ, false)
+
+				// BEQ + offset
+				cpu.Memory[0x8000] = 0xF0 // BEQ
+				cpu.Memory[0x8001] = 0x10 // offset (направление не важно — он не сработает)
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles (branch not taken), got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: F0 (BEQ) branch forward same page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, true)
+
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0xF0 // BEQ
+				cpu.Memory[0x8001] = 0x02 // offset = +2 → 0x8000 + 2 + 2 = 0x8004
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8004 {
+					t.Errorf("Expected PC = 0x8004, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 2+1 { // переход, но та же страница
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: F0 (BEQ) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x81
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, true)
+
+				cpu.PC = 0x8100
+				cpu.Memory[0x8100] = 0xF0 // BEQ
+				cpu.Memory[0x8101] = 0xFE // offset = -2 → 0x8100 + 2 - 2 = 0x8100
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8100 {
+					t.Errorf("Expected PC = 0x8100, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 2+1 { // переход, та же страница
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: F0 (BEQ) no branch when Z flag is clear",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, false)
+
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0xF0 // BEQ
+				cpu.Memory[0x8001] = 0x10 // offset (ignored)
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles (branch not taken), got %d", cpu.Cycles)
 				}
 			},
 		},

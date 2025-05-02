@@ -13,6 +13,7 @@ type CPU struct {
 	P  byte   // Status flags
 
 	Memory [0x10000]byte
+	Cycles int
 }
 
 func New() *CPU {
@@ -93,6 +94,7 @@ func (c *CPU) Execute() {
 	addr := inst.GetAddress(c)
 
 	inst.Execute(c, addr)
+	c.Cycles += inst.Cycles
 
 	if !inst.ModifiesPC {
 		c.PC += uint16(inst.Bytes)
@@ -179,4 +181,9 @@ func (cpu *CPU) fetchImplied() uint16 {
 
 func (cpu *CPU) fetchAccumulator() uint16 {
 	return 0
+}
+
+func (cpu *CPU) fetchRelative() uint16 {
+	offset := int8(cpu.Memory[cpu.PC+1])
+	return uint16(int32(cpu.PC+2) + int32(offset))
 }

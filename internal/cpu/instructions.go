@@ -58,6 +58,7 @@ func init() {
 	initJSRInstructions()
 	initBRKInstructions()
 	initJMPInstructions()
+	initBEQInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -87,6 +88,8 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 		addr = c.fetchImplied()
 	case Accumulator:
 		addr = c.fetchAccumulator()
+	case Relative:
+		addr = c.fetchRelative()
 
 	default:
 		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
@@ -1530,4 +1533,30 @@ func initJMPInstructions() {
 
 func jmpExecute(cpu *CPU, addr uint16) {
 	cpu.PC = addr
+}
+
+func initBEQInstructions() {
+	Instructions[0xF0] = Instruction{
+		Name:   "BEQ",
+		Opcode: 0xF0,
+		Bytes:  2,
+		Cycles: 2,
+		Mode:   Relative,
+		Execute: func(cpu *CPU, addr uint16) {
+			if cpu.GetFlag(FlagZ) {
+				cpu.Cycles += 1
+
+				oldPC := cpu.PC + 1
+
+				if (oldPC & 0xFF00) != (addr & 0xFF00) {
+					cpu.Cycles += 1
+				}
+
+				cpu.PC = addr
+			} else {
+				cpu.PC += 2
+			}
+		},
+		ModifiesPC: true,
+	}
 }
