@@ -57,6 +57,7 @@ func init() {
 	initRTSInstructions()
 	initJSRInstructions()
 	initBRKInstructions()
+	initJMPInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1503,4 +1504,30 @@ func initBRKInstructions() {
 		},
 		ModifiesPC: true,
 	}
+}
+
+func initJMPInstructions() {
+	Instructions[0x6C] = Instruction{
+		Name:       "JMP (indirect)",
+		Opcode:     0x6C,
+		Bytes:      3,
+		Cycles:     5,
+		Mode:       Indirect,
+		Execute:    jmpExecute,
+		ModifiesPC: true,
+	}
+
+	Instructions[0x4C] = Instruction{
+		Name:       "JMP Absolute",
+		Opcode:     0x4C,
+		Bytes:      3,
+		Cycles:     3,
+		Mode:       Absolute,
+		Execute:    jmpExecute,
+		ModifiesPC: true,
+	}
+}
+
+func jmpExecute(cpu *CPU, addr uint16) {
+	cpu.PC = addr
 }

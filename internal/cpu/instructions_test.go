@@ -2586,3 +2586,75 @@ func TestBRKOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestJMPOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 6C (JMP indirect normal)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x8000] = 0x6C // JMP ($1234)
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+
+				// Задаём переходный адрес по $1234 = $40, $1235 = $80 -> PC = $8040
+				cpu.Memory[0x1234] = 0x40
+				cpu.Memory[0x1235] = 0x80
+			},
+			assert: func(cpu *CPU) {
+				if cpu.PC != 0x8040 {
+					t.Errorf("Expected PC = 0x8040, got 0x%04X", cpu.PC)
+				}
+			},
+		},
+		{
+			name: "Opcode: 6C (JMP indirect with page boundary bug)",
+			init: func(cpu *CPU) {
+				// Установим начальный адрес выполнения
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				// Указываем инструкцию JMP ($30FF)
+				cpu.Memory[0x8000] = 0x6C // JMP (indirect)
+				cpu.Memory[0x8001] = 0xFF // low byte of pointer = 0x30FF
+				cpu.Memory[0x8002] = 0x30 // high byte of pointer
+
+				// Устанавливаем значение по адресу $30FF (low) и $3000 (high)
+				cpu.Memory[0x30FF] = 0x80 // low byte of target address
+				cpu.Memory[0x3000] = 0x40 // high byte of target address (bug!)
+
+				// А вот здесь то, что "ожидается логично", но не будет использовано
+				cpu.Memory[0x3100] = 0x50
+			},
+			assert: func(cpu *CPU) {
+				expected := uint16(0x4080)
+				if cpu.PC != expected {
+					t.Errorf("Expected PC = 0x%04X due to page boundary bug, got 0x%04X", expected, cpu.PC)
+				}
+			},
+		},
+		{
+			name: "Opcode: 4C (JMP absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x8000] = 0x4C // JMP $1234
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU) {
+				if cpu.PC != 0x1234 {
+					t.Errorf("Expected PC = 0x1234, got 0x%04X", cpu.PC)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
