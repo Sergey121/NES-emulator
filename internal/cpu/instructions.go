@@ -58,7 +58,7 @@ func init() {
 	initJSRInstructions()
 	initBRKInstructions()
 	initJMPInstructions()
-	initBEQInstructions()
+	initBranchInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1535,15 +1535,10 @@ func jmpExecute(cpu *CPU, addr uint16) {
 	cpu.PC = addr
 }
 
-func initBEQInstructions() {
-	Instructions[0xF0] = Instruction{
-		Name:   "BEQ",
-		Opcode: 0xF0,
-		Bytes:  2,
-		Cycles: 2,
-		Mode:   Relative,
-		Execute: func(cpu *CPU, addr uint16) {
-			if cpu.GetFlag(FlagZ) {
+func initBranchInstructions() {
+	var branchExecuteWrapper = func(check func(cpu *CPU) bool) func(cpu *CPU, addr uint16) {
+		return func(cpu *CPU, addr uint16) {
+			if check(cpu) {
 				cpu.Cycles += 1
 
 				oldPC := cpu.PC + 1
@@ -1556,7 +1551,86 @@ func initBEQInstructions() {
 			} else {
 				cpu.PC += 2
 			}
-		},
+		}
+	}
+
+	Instructions[0x10] = Instruction{
+		Name:       "BPL",
+		Opcode:     0x10,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return !cpu.GetFlag(FlagN) }),
+		ModifiesPC: true,
+	}
+
+	Instructions[0x30] = Instruction{
+		Name:       "BMI",
+		Opcode:     0x30,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return cpu.GetFlag(FlagN) }),
+		ModifiesPC: true,
+	}
+
+	Instructions[0x50] = Instruction{
+		Name:       "BVC",
+		Opcode:     0x50,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return !cpu.GetFlag(FlagV) }),
+		ModifiesPC: true,
+	}
+
+	Instructions[0x70] = Instruction{
+		Name:       "BVS",
+		Opcode:     0x70,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return cpu.GetFlag(FlagV) }),
+		ModifiesPC: true,
+	}
+
+	Instructions[0x90] = Instruction{
+		Name:       "BCC",
+		Opcode:     0x90,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return !cpu.GetFlag(FlagC) }),
+		ModifiesPC: true,
+	}
+
+	Instructions[0xB0] = Instruction{
+		Name:       "BCS",
+		Opcode:     0xB0,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return cpu.GetFlag(FlagC) }),
+		ModifiesPC: true,
+	}
+
+	Instructions[0xD0] = Instruction{
+		Name:       "BNE",
+		Opcode:     0xD0,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return !cpu.GetFlag(FlagZ) }),
+		ModifiesPC: true,
+	}
+
+	Instructions[0xF0] = Instruction{
+		Name:       "BEQ",
+		Opcode:     0xF0,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Relative,
+		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return cpu.GetFlag(FlagZ) }),
 		ModifiesPC: true,
 	}
 }

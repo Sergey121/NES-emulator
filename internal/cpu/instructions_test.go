@@ -2796,3 +2796,623 @@ func TestBEQOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestBPLopcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 10 (BPL) branch taken same page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, false) // Positive
+				cpu.Memory[0x8000] = 0x10 // BPL
+				cpu.Memory[0x8001] = 0x10 // Offset +16 => 0x8012
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8012 {
+					t.Errorf("Expected PC = 0x8012, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 3 {
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 10 (BPL) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, false)
+				cpu.Memory[0x80FE] = 0x10
+				cpu.Memory[0x80FF] = 0x01 // 0x8100 + 1 = 0x8101
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8101 {
+					t.Errorf("Expected PC = 0x8101, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 10 (BPL) no branch when negative flag set",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, true)  // Negative
+				cpu.Memory[0x8000] = 0x10 // BPL
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 10 (BPL) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x01
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, false)
+				cpu.Memory[0x0100] = 0x10
+				cpu.Memory[0x0101] = 0xFC // -4 → 0x00FE
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x00FE {
+					t.Errorf("Expected PC = 0x00FE, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestBMIOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 30 (BMI) branch taken",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, true)
+
+				cpu.Memory[0x8000] = 0x30
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8012 {
+					t.Errorf("Expected PC = 0x8012, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 3 {
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 30 (BMI) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, true)
+				cpu.Memory[0x80FE] = 0x30
+				cpu.Memory[0x80FF] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8101 {
+					t.Errorf("Expected PC = 0x8101, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 30 (BMI) no branch",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, false)
+
+				cpu.Memory[0x8000] = 0x30
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got 0x%04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 30 (BMI) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x01
+				cpu.Reset()
+
+				cpu.SetFlag(FlagN, true)
+				cpu.Memory[0x0100] = 0x30
+				cpu.Memory[0x0101] = 0xFC
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x00FE {
+					t.Errorf("Expected PC = 0x00FE, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestBVCOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 50 (BVC) branch taken",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, false)
+				cpu.Memory[0x8000] = 0x50
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8012 {
+					t.Errorf("Expected PC = 0x8012, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 3 {
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 50 (BVC) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, false)
+				cpu.Memory[0x80FE] = 0x50
+				cpu.Memory[0x80FF] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8101 {
+					t.Errorf("Expected PC = 0x8101, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 50 (BVC) no branch",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, true)
+				cpu.Memory[0x8000] = 0x50
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 50 (BVC) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x01
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, false)
+				cpu.Memory[0x0100] = 0x50
+				cpu.Memory[0x0101] = 0xFC
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x00FE {
+					t.Errorf("Expected PC = 0x00FE, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestBVSOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+
+		{
+			name: "Opcode: 70 (BVS) branch taken",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, true)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0x70
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8012 {
+					t.Errorf("Expected PC = 0x8012, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 3 {
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 70 (BVS) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, true)
+				cpu.Memory[0x80FE] = 0x70
+				cpu.Memory[0x80FF] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8101 {
+					t.Errorf("Expected PC = 0x8101, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 70 (BVS) no branch",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, false)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0x70
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 70 (BVS) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x01
+				cpu.Reset()
+
+				cpu.SetFlag(FlagV, true)
+				cpu.Memory[0x0100] = 0x70
+				cpu.Memory[0x0101] = 0xFC
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x00FE {
+					t.Errorf("Expected PC = 0x00FE, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestBCCOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 90 (BCC) branch taken",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, false)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0x90
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8012 {
+					t.Errorf("Expected PC = 0x8012, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 3 {
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 90 (BCC) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, false)
+				cpu.Memory[0x80FE] = 0x90
+				cpu.Memory[0x80FF] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8101 {
+					t.Errorf("Expected PC = 0x8101, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 90 (BCC) no branch",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0x90
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: 90 (BCC) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x01
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, false)
+				cpu.Memory[0x0100] = 0x90
+				cpu.Memory[0x0101] = 0xFC
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x00FE {
+					t.Errorf("Expected PC = 0x00FE, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestBCSOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: B0 (BCS) branch taken",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0xB0
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8012 {
+					t.Errorf("Expected PC = 0x8012, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 3 {
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: B0 (BCS) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x80FE] = 0xB0
+				cpu.Memory[0x80FF] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8101 {
+					t.Errorf("Expected PC = 0x8101, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: B0 (BCS) no branch",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, false)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0xB0
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: B0 (BCS) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x01
+				cpu.Reset()
+
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x0100] = 0xB0
+				cpu.Memory[0x0101] = 0xFC
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x00FE {
+					t.Errorf("Expected PC = 0x00FE, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestBNEOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: D0 (BNE) branch taken",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, false)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0xD0
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8012 {
+					t.Errorf("Expected PC = 0x8012, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 3 {
+					t.Errorf("Expected 3 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: D0 (BNE) branch across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0xFE
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, false)
+				cpu.Memory[0x80FE] = 0xD0
+				cpu.Memory[0x80FF] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8101 {
+					t.Errorf("Expected PC = 0x8101, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: D0 (BNE) no branch",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, true)
+				cpu.PC = 0x8000
+				cpu.Memory[0x8000] = 0xD0
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8002 {
+					t.Errorf("Expected PC = 0x8002, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: D0 (BNE) branch backward across page",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x01
+				cpu.Reset()
+
+				cpu.SetFlag(FlagZ, false)
+				cpu.Memory[0x0100] = 0xD0
+				cpu.Memory[0x0101] = 0xFC
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x00FE {
+					t.Errorf("Expected PC = 0x00FE, got %04X", cpu.PC)
+				}
+				if cpu.Cycles != 4 {
+					t.Errorf("Expected 4 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
