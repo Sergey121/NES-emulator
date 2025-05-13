@@ -1108,6 +1108,123 @@ func TestTransferOpcodes(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Opcode: CA (DEX) regular decrement",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x02
+				cpu.Memory[0x8000] = 0xCA // DEX
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.X != 0x01 {
+					t.Errorf("Expected X = 0x01, got 0x%02X", cpu.X)
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Zero flag should be clear")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Negative flag should be clear")
+				}
+				if cpu.Cycles != 2 {
+					t.Errorf("Expected 2 cycles, got %d", cpu.Cycles)
+				}
+			},
+		},
+		{
+			name: "Opcode: CA (DEX) result zero",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x01
+				cpu.Memory[0x8000] = 0xCA // DEX
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.X != 0x00 {
+					t.Errorf("Expected X = 0x00, got 0x%02X", cpu.X)
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Zero flag should be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: CA (DEX) result negative",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x00
+				cpu.Memory[0x8000] = 0xCA // DEX
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.X != 0xFF {
+					t.Errorf("Expected X = 0xFF, got 0x%02X", cpu.X)
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Negative flag should be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: E8 (INX) result zero",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0xFF
+				cpu.Memory[0x8000] = 0xE8 // INX
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.X != 0x00 {
+					t.Errorf("Expected X = 0x00, got 0x%02X", cpu.X)
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Zero flag should be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 88 (DEY) regular decrement",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x05
+				cpu.Memory[0x8000] = 0x88 // DEY
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Y != 0x04 {
+					t.Errorf("Expected Y = 0x04, got %02X", cpu.Y)
+				}
+			},
+		},
+		{
+			name: "Opcode: C8 (INY) result negative",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Y = 0x7F
+				cpu.Memory[0x8000] = 0xC8 // INY
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Y != 0x80 {
+					t.Errorf("Expected Y = 0x80, got 0x%02X", cpu.Y)
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Negative flag should be set")
+				}
+			},
+		},
 	}
 
 	runTests(t, tests)
@@ -1405,6 +1522,78 @@ func TestADCOpcodes(t *testing.T) {
 	}
 
 	runTests(t, tests)
+
+	tests2 := []OpcodeTest{
+		{
+			name: "Opcode: 69 (ADC) carry flag set",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0xFF
+				cpu.Memory[0x8000] = 0x69 // ADC #$01
+				cpu.Memory[0x8001] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.A != 0x00 {
+					t.Errorf("Expected A = 0x00, got 0x%02X", cpu.A)
+				}
+				if !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be set")
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 69 (ADC) overflow flag set (positive + positive = negative)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x50
+				cpu.Memory[0x8000] = 0x69 // ADC #$50
+				cpu.Memory[0x8001] = 0x50
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.A != 0xA0 {
+					t.Errorf("Expected A = 0xA0, got 0x%02X", cpu.A)
+				}
+				if !cpu.GetFlag(FlagV) {
+					t.Errorf("Expected Overflow flag to be set")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 69 (ADC) with carry-in",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x01
+				cpu.SetFlag(FlagC, true)
+				cpu.Memory[0x8000] = 0x69 // ADC #$01
+				cpu.Memory[0x8001] = 0x01
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.A != 0x03 {
+					t.Errorf("Expected A = 0x03, got 0x%02X", cpu.A)
+				}
+				if cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Carry flag to be clear")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests2)
 }
 
 func TestADCExecute(t *testing.T) {

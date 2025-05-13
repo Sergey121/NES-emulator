@@ -187,3 +187,8 @@ func (cpu *CPU) fetchRelative() uint16 {
 	offset := int8(cpu.Memory[cpu.PC+1])
 	return uint16(int32(cpu.PC+2) + int32(offset))
 }
+
+func (cpu *CPU) setZN(value byte) {
+	cpu.SetFlag(FlagZ, value == 0)
+	cpu.SetFlag(FlagN, value&0x80 != 0)
+}

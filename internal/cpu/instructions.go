@@ -503,6 +503,51 @@ func initTransferInstructions() {
 			cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 		},
 	}
+
+	Instructions[0xCA] = Instruction{
+		Name:   "DEX",
+		Opcode: 0xCA,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.X--
+			cpu.setZN(cpu.X)
+		},
+	}
+	Instructions[0xE8] = Instruction{
+		Name:   "INX",
+		Opcode: 0xE8,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.X++
+			cpu.setZN(cpu.X)
+		},
+	}
+	Instructions[0x88] = Instruction{
+		Name:   "DEY",
+		Opcode: 0x88,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.Y--
+			cpu.setZN(cpu.Y)
+		},
+	}
+	Instructions[0xC8] = Instruction{
+		Name:   "INY",
+		Opcode: 0xC8,
+		Bytes:  1,
+		Cycles: 2,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.Y++
+			cpu.setZN(cpu.Y)
+		},
+	}
 }
 
 func initFlagInstructions() {
