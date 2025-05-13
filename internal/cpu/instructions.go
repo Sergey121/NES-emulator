@@ -59,6 +59,8 @@ func init() {
 	initBRKInstructions()
 	initJMPInstructions()
 	initBranchInstructions()
+	initStackInstructions()
+	initINCInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1677,5 +1679,95 @@ func initBranchInstructions() {
 		Mode:       Relative,
 		Execute:    branchExecuteWrapper(func(cpu *CPU) bool { return cpu.GetFlag(FlagZ) }),
 		ModifiesPC: true,
+	}
+}
+
+func initStackInstructions() {
+	Instructions[0x48] = Instruction{
+		Name:   "PHA",
+		Opcode: 0x48,
+		Bytes:  1,
+		Cycles: 3,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.Push(cpu.A)
+		},
+	}
+
+	Instructions[0x68] = Instruction{
+		Name:   "PLA",
+		Opcode: 0x68,
+		Bytes:  1,
+		Cycles: 4,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.A = cpu.Pull()
+			// cpu.SetFlag(FlagZ, cpu.A == 0)
+			// cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+			cpu.setZN(cpu.A)
+		},
+	}
+
+	Instructions[0x08] = Instruction{
+		Name:   "PHP",
+		Opcode: 0x08,
+		Bytes:  1,
+		Cycles: 3,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.Push(cpu.P | FlagB | FlagU)
+		},
+	}
+
+	Instructions[0x28] = Instruction{
+		Name:   "PLP",
+		Opcode: 0x28,
+		Bytes:  1,
+		Cycles: 4,
+		Mode:   Implied,
+		Execute: func(cpu *CPU, _ uint16) {
+			cpu.SetStatus(cpu.Pull() | FlagU)
+		},
+	}
+}
+
+func incExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr] + 1
+	cpu.Memory[addr] = value
+	cpu.setZN(value)
+}
+
+func initINCInstructions() {
+	Instructions[0xE6] = Instruction{
+		Name:    "INC Zero Page",
+		Opcode:  0xE6,
+		Bytes:   2,
+		Cycles:  5,
+		Mode:    ZeroPage,
+		Execute: incExecute,
+	}
+	Instructions[0xF6] = Instruction{
+		Name:    "INC Zero Page,X",
+		Opcode:  0xF6,
+		Bytes:   2,
+		Cycles:  6,
+		Mode:    ZeroPageX,
+		Execute: incExecute,
+	}
+	Instructions[0xEE] = Instruction{
+		Name:    "INC Absolute",
+		Opcode:  0xEE,
+		Bytes:   3,
+		Cycles:  6,
+		Mode:    Absolute,
+		Execute: incExecute,
+	}
+	Instructions[0xFE] = Instruction{
+		Name:    "INC Absolute,X",
+		Opcode:  0xFE,
+		Bytes:   3,
+		Cycles:  7,
+		Mode:    AbsoluteX,
+		Execute: incExecute,
 	}
 }

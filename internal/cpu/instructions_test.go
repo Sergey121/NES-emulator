@@ -3605,3 +3605,172 @@ func TestBNEOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestStackOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 48 (PHA)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0x42
+				cpu.Memory[0x8000] = 0x48 // PHA
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				value := cpu.Pull()
+				if value != 0x42 {
+					t.Errorf("Expected top of stack = 0x42, got 0x%02X", value)
+				}
+			},
+		},
+		{
+			name: "Opcode: 68 (PLA)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Push(0x99)
+				cpu.Memory[0x8000] = 0x68 // PLA
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.A != 0x99 {
+					t.Errorf("Expected A = 0x99, got 0x%02X", cpu.A)
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 08 (PHP)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.P = FlagZ | FlagC
+				cpu.Memory[0x8000] = 0x08 // PHP
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				status := cpu.Pull()
+				expected := FlagZ | FlagC | FlagB | FlagU
+				if status != byte(expected) {
+					t.Errorf("Expected pushed status = 0x%02X, got 0x%02X", expected, status)
+				}
+			},
+		},
+		{
+			name: "Opcode: 28 (PLP)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Push(FlagZ | FlagC)
+				cpu.Memory[0x8000] = 0x28 // PLP
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if !cpu.GetFlag(FlagZ) || !cpu.GetFlag(FlagC) {
+					t.Errorf("Expected Z and C flags to be set")
+				}
+				if !cpu.GetFlag(FlagU) {
+					t.Errorf("Expected unused flag (U) to be set")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
+
+func TestINCOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: E6 (INC Zero Page)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x10] = 0x7F
+				cpu.Memory[0x8000] = 0xE6
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				value := cpu.Memory[0x10]
+				if value != 0x80 {
+					t.Errorf("Expected memory[0x10] = 0x80, got 0x%02X", value)
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: F6 (INC Zero Page,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x01
+				cpu.Memory[0x11] = 0x00
+				cpu.Memory[0x8000] = 0xF6
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x11] != 0x01 {
+					t.Errorf("Expected memory[0x11] = 0x01, got 0x%02X", cpu.Memory[0x11])
+				}
+			},
+		},
+		{
+			name: "Opcode: EE (INC Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x1234] = 0xFF
+				cpu.Memory[0x8000] = 0xEE
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x1234] != 0x00 {
+					t.Errorf("Expected memory[0x1234] = 0x00, got 0x%02X", cpu.Memory[0x1234])
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: FE (INC Absolute,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 0x01
+				cpu.Memory[0x1235] = 0x40
+				cpu.Memory[0x8000] = 0xFE
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x1235] != 0x41 {
+					t.Errorf("Expected memory[0x1235] = 0x41, got 0x%02X", cpu.Memory[0x1235])
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
