@@ -61,6 +61,9 @@ func init() {
 	initBranchInstructions()
 	initStackInstructions()
 	initINCInstructions()
+	initBITInstructions()
+	initDECInstructions()
+	initNOPInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -1769,5 +1772,84 @@ func initINCInstructions() {
 		Cycles:  7,
 		Mode:    AbsoluteX,
 		Execute: incExecute,
+	}
+}
+
+func bitExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr]
+	cpu.SetFlag(FlagZ, cpu.A&value == 0)
+	cpu.SetFlag(FlagV, (value&0x40) != 0) // бит 6 -> V
+	cpu.SetFlag(FlagN, (value&0x80) != 0) // бит 7 -> N
+}
+
+func initBITInstructions() {
+	Instructions[0x24] = Instruction{
+		Name:    "BIT Zero Page",
+		Opcode:  0x24,
+		Bytes:   2,
+		Cycles:  3,
+		Mode:    ZeroPage,
+		Execute: bitExecute,
+	}
+	Instructions[0x2C] = Instruction{
+		Name:    "BIT Absolute",
+		Opcode:  0x2C,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    Absolute,
+		Execute: bitExecute,
+	}
+}
+
+func decExecute(cpu *CPU, addr uint16) {
+	value := cpu.Memory[addr] - 1
+	cpu.Memory[addr] = value
+	cpu.SetFlag(FlagZ, value == 0)
+	cpu.SetFlag(FlagN, (value&0x80) != 0)
+}
+
+func initDECInstructions() {
+	Instructions[0xC6] = Instruction{
+		Name:    "DEC Zero Page",
+		Opcode:  0xC6,
+		Bytes:   2,
+		Cycles:  5,
+		Mode:    ZeroPage,
+		Execute: decExecute,
+	}
+	Instructions[0xD6] = Instruction{
+		Name:    "DEC Zero Page,X",
+		Opcode:  0xD6,
+		Bytes:   2,
+		Cycles:  6,
+		Mode:    ZeroPageX,
+		Execute: decExecute,
+	}
+	Instructions[0xCE] = Instruction{
+		Name:    "DEC Absolute",
+		Opcode:  0xCE,
+		Bytes:   3,
+		Cycles:  6,
+		Mode:    Absolute,
+		Execute: decExecute,
+	}
+	Instructions[0xDE] = Instruction{
+		Name:    "DEC Absolute,X",
+		Opcode:  0xDE,
+		Bytes:   3,
+		Cycles:  7,
+		Mode:    AbsoluteX,
+		Execute: decExecute,
+	}
+}
+
+func initNOPInstructions() {
+	Instructions[0xEA] = Instruction{
+		Name:    "NOP",
+		Opcode:  0xEA,
+		Bytes:   1,
+		Cycles:  2,
+		Mode:    Implied,
+		Execute: func(cpu *CPU, _ uint16) {},
 	}
 }

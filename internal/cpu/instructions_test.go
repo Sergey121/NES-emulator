@@ -3774,3 +3774,236 @@ func TestINCOpcodes(t *testing.T) {
 
 	runTests(t, tests)
 }
+
+func TestBITOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: 24 (BIT Zero Page)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0b00000000
+				cpu.Memory[0x0010] = 0b11000000
+				cpu.Memory[0x8000] = 0x24 // BIT $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+				if !cpu.GetFlag(FlagV) {
+					t.Errorf("Expected Overflow flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: 2C (BIT Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.A = 0b00000001
+				cpu.Memory[0x1234] = 0b00000001
+				cpu.Memory[0x8000] = 0x2C
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be clear")
+				}
+				if cpu.GetFlag(FlagV) {
+					t.Errorf("Expected Overflow flag to be clear")
+				}
+			},
+		},
+	}
+	runTests(t, tests)
+}
+
+func TestDECOpcodes(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: C6 (DEC Zero Page)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x10] = 0x01
+				cpu.Memory[0x8000] = 0xC6
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x10] != 0x00 {
+					t.Errorf("Expected memory[0x10] = 0x00, got %02X", cpu.Memory[0x10])
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+			},
+		},
+		{
+			name: "Opcode: D6 (DEC Zero Page,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 1
+				cpu.Memory[0x11] = 0xFF
+				cpu.Memory[0x8000] = 0xD6
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x11] != 0xFE {
+					t.Errorf("Expected memory[0x11] = 0xFE, got %02X", cpu.Memory[0x11])
+				}
+			},
+		},
+		{
+			name: "Opcode: CE (DEC Absolute)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x1234] = 0x01
+				cpu.Memory[0x8000] = 0xCE
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x1234] != 0x00 {
+					t.Errorf("Expected memory[0x1234] = 0x00, got %02X", cpu.Memory[0x1234])
+				}
+			},
+		},
+		{
+			name: "Opcode: DE (DEC Absolute,X)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.X = 1
+				cpu.Memory[0x1235] = 0x42
+				cpu.Memory[0x8000] = 0xDE
+				cpu.Memory[0x8001] = 0x34
+				cpu.Memory[0x8002] = 0x12
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x1235] != 0x41 {
+					t.Errorf("Expected memory[0x1235] = 0x41, got %02X", cpu.Memory[0x1235])
+				}
+			},
+		},
+	}
+	runTests(t, tests)
+}
+
+func TestNOPOpcode(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "Opcode: EA (NOP)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x8000] = 0xEA // NOP
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.PC != 0x8001 {
+					t.Errorf("Expected PC = 0x8001 after NOP, got %04X", cpu.PC)
+				}
+			},
+		},
+	}
+	runTests(t, tests)
+}
+
+func TestDECExecute(t *testing.T) {
+	tests := []OpcodeTest{
+		{
+			name: "DEC to zero (sets Z flag)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x0010] = 0x01
+				cpu.Memory[0x8000] = 0xC6 // DEC $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x0010] != 0x00 {
+					t.Errorf("Expected memory[0x10] = 0x00, got 0x%02X", cpu.Memory[0x0010])
+				}
+				if !cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be set")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be clear")
+				}
+			},
+		},
+		{
+			name: "DEC wraps to 0xFF (sets N flag)",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x0010] = 0x00
+				cpu.Memory[0x8000] = 0xC6 // DEC $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x0010] != 0xFF {
+					t.Errorf("Expected memory[0x10] = 0xFF, got 0x%02X", cpu.Memory[0x0010])
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+				if !cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be set")
+				}
+			},
+		},
+		{
+			name: "DEC clears Z and N",
+			init: func(cpu *CPU) {
+				cpu.Memory[ResetVector] = 0x00
+				cpu.Memory[ResetVector+1] = 0x80
+				cpu.Reset()
+
+				cpu.Memory[0x0010] = 0x10
+				cpu.Memory[0x8000] = 0xC6 // DEC $10
+				cpu.Memory[0x8001] = 0x10
+			},
+			assert: func(cpu *CPU, t *testing.T) {
+				if cpu.Memory[0x0010] != 0x0F {
+					t.Errorf("Expected memory[0x10] = 0x0F, got 0x%02X", cpu.Memory[0x0010])
+				}
+				if cpu.GetFlag(FlagZ) {
+					t.Errorf("Expected Zero flag to be clear")
+				}
+				if cpu.GetFlag(FlagN) {
+					t.Errorf("Expected Negative flag to be clear")
+				}
+			},
+		},
+	}
+
+	runTests(t, tests)
+}
