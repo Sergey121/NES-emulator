@@ -101,6 +101,15 @@ func (c *CPU) Execute() {
 	}
 }
 
+func (cpu *CPU) Trace() string {
+	opcode := cpu.Memory[cpu.PC]
+	return fmt.Sprintf(
+		"PC: %04X  OPCODE: %02X  A:%02X X:%02X Y:%02X P:%02X SP:%02X",
+		cpu.PC, opcode,
+		cpu.A, cpu.X, cpu.Y, cpu.P, cpu.SP,
+	)
+}
+
 func (c *CPU) fetchImediate() uint16 {
 	return uint16(c.PC + 1)
 }
