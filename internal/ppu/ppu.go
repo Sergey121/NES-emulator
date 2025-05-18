@@ -41,6 +41,53 @@ type PPU struct {
 	nmiPrevious bool // Previous NMI output flag
 }
 
+func (ppu *PPU) Cycle() int {
+	return ppu.cycle
+}
+
+func (ppu *PPU) Scanline() int {
+	return ppu.scanline
+}
+
+func (ppu *PPU) NMIOccurred() bool {
+	return ppu.nmiOccurred
+}
+
 func (ppu *PPU) ReadRegister(addr uint16) byte {
 	panic("ReadRegister not implemented")
+}
+
+func (ppu *PPU) Step() {
+	// VBlank start
+	if ppu.scanline == 241 && ppu.cycle == 1 {
+		// Set the VBlank flag
+		ppu.PPUStatus |= 0x80 // Set the VBlank flag (bit 7)
+		ppu.nmiOccurred = true
+
+		// If NMI is enabled, trigger NMI
+		if ppu.PPUCTRL&0x80 != 0 {
+			// Trigger NMI
+			ppu.nmiOutput = true
+		}
+	}
+
+	// VBlank end
+	if ppu.scanline == 261 && ppu.cycle == 1 {
+		// Clear the VBlank flag
+		ppu.PPUStatus &^= 0x80 // Clear the VBlank flag (bit 7)
+		ppu.nmiOccurred = false
+		ppu.nmiOutput = false
+	}
+
+	// Increment the cycle
+	ppu.cycle++
+	if ppu.cycle >= 341 {
+		ppu.cycle = 0
+		ppu.scanline++
+
+		if ppu.scanline >= 262 {
+			ppu.scanline = 0
+			ppu.frame++
+		}
+	}
 }
