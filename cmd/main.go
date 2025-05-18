@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 
+	"github.com/sergey121/nes-emulator/internal/bus"
 	"github.com/sergey121/nes-emulator/internal/cpu"
+	"github.com/sergey121/nes-emulator/internal/ppu"
 	"github.com/sergey121/nes-emulator/internal/rom"
 )
 
@@ -17,7 +19,12 @@ func main() {
 		panic(err)
 	}
 
+	ppu := ppu.New()
+	bus := bus.New(ppu, cartridge)
 	cpuInstance := cpu.New()
+
+	cpuInstance.AttachBus(bus)
+	bus.AttachCPU(cpuInstance)
 
 	err = cpuInstance.InsertCartridge(cartridge)
 	if err != nil {
@@ -28,6 +35,6 @@ func main() {
 
 	for {
 		fmt.Println(cpuInstance.Trace())
-		cpuInstance.Execute()
+		cpuInstance.Step()
 	}
 }

@@ -14,12 +14,23 @@ type Bus struct {
 	RAM [0x800]byte // 2KB of RAM
 }
 
-func New(cpu *cpu.CPU, ppu *ppu.PPU, cartridge *rom.Cartridge) *Bus {
+func New(ppu *ppu.PPU, cartridge *rom.Cartridge) *Bus {
 	return &Bus{
-		CPU:       cpu,
 		PPU:       ppu,
 		Cartridge: cartridge,
 	}
+}
+
+func (b *Bus) AttachCPU(cpu *cpu.CPU) {
+	b.CPU = cpu
+}
+
+func (b *Bus) ShouldTriggerNMI() bool {
+	return b.PPU.NMIOccurred() && b.PPU.PPUCTRL&0x80 != 0
+}
+
+func (b *Bus) AcknowledgeNMI() {
+	b.PPU.ClearNMI()
 }
 
 func (b *Bus) CPURead(addr uint16) byte {

@@ -4,6 +4,12 @@ import (
 	"fmt"
 )
 
+type CPUBus interface {
+	CPURead(addr uint16) byte
+	ShouldTriggerNMI() bool
+	AcknowledgeNMI()
+}
+
 type CPU struct {
 	A  byte   // Accumulator
 	X  byte   // Index Register X
@@ -14,6 +20,8 @@ type CPU struct {
 
 	Memory [0x10000]byte
 	Cycles int
+
+	Bus CPUBus
 }
 
 func New() *CPU {
@@ -34,6 +42,10 @@ const (
 	FlagV = 1 << 6 // Overflow Flag
 	FlagN = 1 << 7 // Negative Flag
 )
+
+func (c *CPU) AttachBus(bus CPUBus) {
+	c.Bus = bus
+}
 
 func (c *CPU) Reset() {
 	c.PC = uint16(c.Memory[ResetVector]) | (uint16(c.Memory[ResetVector+1]) << 8)
@@ -83,6 +95,15 @@ func (c *CPU) Pull16() uint16 {
 	return (hi << 8) | lo
 }
 
+func (c *CPU) Step() {
+	if c.Bus.ShouldTriggerNMI() {
+		c.TriggerNMI()
+		c.Bus.AcknowledgeNMI()
+	}
+
+	c.Execute()
+}
+
 func (c *CPU) Execute() {
 	opcode := c.Memory[c.PC]
 	inst, ok := Instructions[opcode]
@@ -108,6 +129,19 @@ func (cpu *CPU) Trace() string {
 		cpu.PC, opcode,
 		cpu.A, cpu.X, cpu.Y, cpu.P, cpu.SP,
 	)
+}
+
+func (c *CPU) Read16(addr uint16) uint16 {
+	low := c.Bus.CPURead(addr)
+	high := c.Bus.CPURead(addr + 1)
+	return uint16(low) | (uint16(high) << 8)
+}
+
+func (c *CPU) TriggerNMI() {
+	c.Push16(c.PC)
+	c.Push(c.P | 0x20)
+	c.setInterruptDisable(true)
+	c.PC = c.Read16(0xFFFA) // NMI vector
 }
 
 func (c *CPU) fetchImediate() uint16 {
@@ -200,4 +234,8 @@ func (cpu *CPU) fetchRelative() uint16 {
 func (cpu *CPU) setZN(value byte) {
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, value&0x80 != 0)
+}
+
+func (cpu *CPU) setInterruptDisable(val bool) {
+	cpu.SetFlag(FlagI, val)
 }

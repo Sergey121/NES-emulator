@@ -41,6 +41,10 @@ type PPU struct {
 	nmiPrevious bool // Previous NMI output flag
 }
 
+func New() *PPU {
+	return &PPU{}
+}
+
 func (ppu *PPU) Cycle() int {
 	return ppu.cycle
 }
@@ -51,6 +55,10 @@ func (ppu *PPU) Scanline() int {
 
 func (ppu *PPU) NMIOccurred() bool {
 	return ppu.nmiOccurred
+}
+
+func (ppu *PPU) ClearNMI() {
+	ppu.nmiOccurred = false
 }
 
 func (ppu *PPU) ReadRegister(addr uint16) byte {
