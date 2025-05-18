@@ -39,6 +39,8 @@ type PPU struct {
 	nmiOccurred bool // NMI occurred flag
 	nmiOutput   bool // NMI output flag
 	nmiPrevious bool // Previous NMI output flag
+
+	bufferedRead byte // Buffered read value
 }
 
 func New() *PPU {
@@ -62,7 +64,31 @@ func (ppu *PPU) ClearNMI() {
 }
 
 func (ppu *PPU) ReadRegister(addr uint16) byte {
-	panic("ReadRegister not implemented")
+	switch addr {
+	case 0x2007: // PPU Data
+		value := ppu.read(ppu.v)
+
+		var result byte
+
+		if ppu.v >= 0x3F00 && ppu.v < 0x3FFF {
+			// Read from palette directly
+			result = value
+		} else {
+			// Deffered read: return buffered value and then update
+			result = ppu.bufferedRead
+			ppu.bufferedRead = value
+		}
+
+		// Increment the VRAM address
+		if ppu.PPUCTRL&0x04 == 0 {
+			ppu.v += 1
+		} else {
+			ppu.v += 32
+		}
+
+		return result
+	}
+	return 0 // Unmapped memory
 }
 
 func (ppu *PPU) WriteRegister(addr uint16, value byte) {
@@ -85,6 +111,15 @@ func (ppu *PPU) WriteRegister(addr uint16, value byte) {
 			ppu.t = (ppu.t & 0xFF00) | uint16(value)
 			ppu.v = ppu.t
 			ppu.w = false
+		}
+	case 0x2007: // PPU Data
+		ppu.write(ppu.v, value)
+
+		// Increment the VRAM address
+		if ppu.PPUCTRL&0x04 == 0 {
+			ppu.v += 1
+		} else {
+			ppu.v += 32
 		}
 	}
 }
@@ -121,5 +156,35 @@ func (ppu *PPU) Step() {
 			ppu.scanline = 0
 			ppu.frame++
 		}
+	}
+}
+
+func (ppu *PPU) read(addr uint16) byte {
+	addr &= 0x3FFF // Mask to 14 bits
+
+	switch {
+	case addr < 0x2000:
+		return ppu.CHR[addr]
+	case addr < 0x3F00:
+		return ppu.VRAM[addr-0x2000]
+	case addr < 0x4000:
+		return ppu.PaletteTable[(addr-0x3F00)%32]
+	default:
+		return 0 // Unmapped memory
+	}
+}
+
+func (ppu *PPU) write(addr uint16, value byte) {
+	addr &= 0x3FFF // Mask to 14 bits
+
+	switch {
+	case addr < 0x2000:
+		// CHR RAM (not used, not ROM)
+	case addr < 0x3F00:
+		ppu.VRAM[addr-0x2000] = value
+	case addr < 0x4000:
+		ppu.PaletteTable[(addr-0x3F00)%32] = value
+	default:
+		// Unmapped memory
 	}
 }
