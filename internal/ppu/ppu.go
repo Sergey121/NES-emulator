@@ -65,6 +65,30 @@ func (ppu *PPU) ReadRegister(addr uint16) byte {
 	panic("ReadRegister not implemented")
 }
 
+func (ppu *PPU) WriteRegister(addr uint16, value byte) {
+	switch addr {
+	case 0x2005: // PPU Scroll
+		if !ppu.w {
+			ppu.t = (ppu.t & 0xFFE0) | uint16(value>>3)
+			ppu.x = value & 0x07
+			ppu.w = true
+		} else {
+			ppu.t = (ppu.t & 0x8FFF) | ((uint16(value) & 0x07) << 12)
+			ppu.t = (ppu.t & 0xFC1F) | ((uint16(value) & 0xF8) << 2)
+			ppu.w = false
+		}
+	case 0x2006: // PPU Address
+		if !ppu.w {
+			ppu.t = (ppu.t & 0x00FF) | ((uint16(value) & 0x3F) << 8)
+			ppu.w = true
+		} else {
+			ppu.t = (ppu.t & 0xFF00) | uint16(value)
+			ppu.v = ppu.t
+			ppu.w = false
+		}
+	}
+}
+
 func (ppu *PPU) Step() {
 	// VBlank start
 	if ppu.scanline == 241 && ppu.cycle == 1 {
