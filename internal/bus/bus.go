@@ -26,7 +26,7 @@ func (b *Bus) AttachCPU(cpu *cpu.CPU) {
 }
 
 func (b *Bus) ShouldTriggerNMI() bool {
-	return b.PPU.NMIOccurred() && b.PPU.PPUCTRL&0x80 != 0
+	return b.PPU.NMIOccurred()
 }
 
 func (b *Bus) AcknowledgeNMI() {
@@ -48,5 +48,38 @@ func (b *Bus) CPURead(addr uint16) byte {
 	default:
 		// Unmapped memory
 		return 0
+	}
+}
+
+func (b *Bus) CPUWrite(addr uint16, value byte) {
+	switch {
+	case addr >= 0x0000 && addr <= 0x1FFF:
+		// 2KB internal RAM, mirrored every 0x800
+		b.RAM[addr%0x0800] = value
+
+	case addr >= 0x2000 && addr <= 0x3FFF:
+		// PPU registers (mirrored every 8 bytes)
+		// fmt.Printf("PPU register write: %04X = %02X\n", addr, value)
+		b.PPU.WriteRegister(0x2000+(addr%8), value)
+
+	case addr >= 0x4000 && addr <= 0x4013, addr == 0x4015:
+		// APU and I/O (если нужно)
+
+	case addr == 0x4014:
+		// OAM DMA
+		b.PPU.OAMDMA = value
+
+	case addr == 0x4016 || addr == 0x4017:
+		// Controller
+
+	case addr >= 0x8000:
+		// PRG ROM — обычно нельзя писать, но можно обработать
+		b.Cartridge.WritePRG(addr, value)
+	}
+}
+
+func (b *Bus) ClockPPU() {
+	for i := 0; i < 3; i++ {
+		b.PPU.Step()
 	}
 }

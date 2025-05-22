@@ -1,17 +1,21 @@
 package main
 
 import (
-	"fmt"
-
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/sergey121/nes-emulator/internal/bus"
 	"github.com/sergey121/nes-emulator/internal/cpu"
 	"github.com/sergey121/nes-emulator/internal/ppu"
 	"github.com/sergey121/nes-emulator/internal/rom"
 )
 
-func main() {
-	// Load cartridge
-	// how to load from a file from root folder?
+type Game struct {
+	cpu     *cpu.CPU
+	ppu     *ppu.PPU
+	ebImage *ebiten.Image
+}
+
+func NewGame() *Game {
+	// path := "./assets/roms/Tetris.nes"
 	path := "./assets/roms/Super Mario Bros (E).nes"
 
 	cartridge, err := rom.LoadRom(path)
@@ -19,22 +23,57 @@ func main() {
 		panic(err)
 	}
 
-	ppu := ppu.New()
+	ppu := ppu.New(cartridge.CHR)
 	bus := bus.New(ppu, cartridge)
 	cpuInstance := cpu.New()
 
 	cpuInstance.AttachBus(bus)
 	bus.AttachCPU(cpuInstance)
 
-	err = cpuInstance.InsertCartridge(cartridge)
-	if err != nil {
-		panic(err)
+	cpuInstance.Reset()
+	bus.PPU.Reset()
+
+	bus.CPURead(0x2002)
+
+	for i := 0; i < 341; i++ {
+		bus.ClockPPU()
 	}
 
-	cpuInstance.Reset()
+	ebImage := ebiten.NewImage(256, 240)
 
-	for {
-		fmt.Println(cpuInstance.Trace())
-		cpuInstance.Step()
+	return &Game{
+		cpu:     cpuInstance,
+		ppu:     ppu,
+		ebImage: ebImage,
+	}
+}
+
+func (g *Game) Update() error {
+	// Один кадр ≈ 29780 PPU-тактов
+	for i := 0; i < 29780; i++ {
+		// fmt.Println(g.cpu.Trace())
+		g.cpu.Step()
+	}
+
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	g.ppu.DrawToImage(g.ebImage)     // твой метод отрисовки framebuffer в ebiten.Image
+	screen.DrawImage(g.ebImage, nil) // вывод на экран
+}
+
+func (g *Game) Layout(outW, outH int) (int, int) {
+	return 256, 240
+}
+
+func main() {
+	game := NewGame()
+
+	ebiten.SetWindowSize(512, 480)
+	ebiten.SetWindowTitle("NES Emulator")
+
+	if err := ebiten.RunGame(game); err != nil {
+		panic(err)
 	}
 }

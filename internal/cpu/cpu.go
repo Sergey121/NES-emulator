@@ -6,8 +6,10 @@ import (
 
 type CPUBus interface {
 	CPURead(addr uint16) byte
+	CPUWrite(addr uint16, value byte)
 	ShouldTriggerNMI() bool
 	AcknowledgeNMI()
+	ClockPPU()
 }
 
 type CPU struct {
@@ -18,7 +20,7 @@ type CPU struct {
 	PC uint16 // Program Counter
 	P  byte   // Status flags
 
-	Memory [0x10000]byte
+	// Memory [0x10000]byte
 	Cycles int
 
 	Bus CPUBus
@@ -26,7 +28,7 @@ type CPU struct {
 
 func New() *CPU {
 	return &CPU{
-		Memory: [0x10000]byte{},
+		// Memory: [0x10000]byte{},
 	}
 }
 
@@ -48,7 +50,7 @@ func (c *CPU) AttachBus(bus CPUBus) {
 }
 
 func (c *CPU) Reset() {
-	c.PC = uint16(c.Memory[ResetVector]) | (uint16(c.Memory[ResetVector+1]) << 8)
+	c.PC = uint16(c.Bus.CPURead(ResetVector)) | (uint16(c.Bus.CPURead(ResetVector+1)) << 8)
 	c.SP = 0xFD
 	c.A = 0
 	c.X = 0
@@ -73,7 +75,7 @@ func (c *CPU) SetStatus(value byte) {
 }
 
 func (c *CPU) Push(value byte) {
-	c.Memory[0x0100+uint16(c.SP)] = value
+	c.Bus.CPUWrite(0x0100+uint16(c.SP), value)
 	c.SP--
 }
 
@@ -86,7 +88,7 @@ func (c *CPU) Push16(value uint16) {
 
 func (c *CPU) Pull() byte {
 	c.SP++
-	return c.Memory[0x0100+uint16(c.SP)]
+	return c.Bus.CPURead(0x0100 + uint16(c.SP))
 }
 
 func (c *CPU) Pull16() uint16 {
@@ -101,11 +103,13 @@ func (c *CPU) Step() {
 		c.Bus.AcknowledgeNMI()
 	}
 
+	c.Bus.ClockPPU()
+
 	c.Execute()
 }
 
 func (c *CPU) Execute() {
-	opcode := c.Memory[c.PC]
+	opcode := c.Bus.CPURead(c.PC)
 	inst, ok := Instructions[opcode]
 	if !ok {
 		str := fmt.Sprintf("Unknown opcode: 0x%02X", opcode)
@@ -123,7 +127,7 @@ func (c *CPU) Execute() {
 }
 
 func (cpu *CPU) Trace() string {
-	opcode := cpu.Memory[cpu.PC]
+	opcode := cpu.Bus.CPURead(cpu.PC)
 	return fmt.Sprintf(
 		"PC: %04X  OPCODE: %02X  A:%02X X:%02X Y:%02X P:%02X SP:%02X",
 		cpu.PC, opcode,
@@ -138,6 +142,7 @@ func (c *CPU) Read16(addr uint16) uint16 {
 }
 
 func (c *CPU) TriggerNMI() {
+	fmt.Println("[CPU] >>> TriggerNMI выполнен!")
 	c.Push16(c.PC)
 	c.Push(c.P | 0x20)
 	c.setInterruptDisable(true)
@@ -149,71 +154,71 @@ func (c *CPU) fetchImediate() uint16 {
 }
 
 func (c *CPU) fetchZeroPage() uint16 {
-	operand := c.Memory[c.PC+1]
+	operand := c.Bus.CPURead(c.PC + 1)
 	return uint16(operand)
 }
 
 func (cpu *CPU) fetchZeroPageX() uint16 {
-	base := cpu.Memory[cpu.PC+1]
+	base := cpu.Bus.CPURead(cpu.PC + 1)
 	addr := (uint16(base) + uint16(cpu.X)) & 0x00FF
 	return addr
 }
 
 func (cpu *CPU) fetchZeroPageY() uint16 {
-	base := cpu.Memory[cpu.PC+1]
+	base := cpu.Bus.CPURead(cpu.PC + 1)
 	addr := (uint16(base) + uint16(cpu.Y)) & 0x00FF
 	return addr
 }
 
 func (cpu *CPU) fetchAbsolute() uint16 {
-	lo := cpu.Memory[cpu.PC+1]
-	hi := cpu.Memory[cpu.PC+2]
+	lo := cpu.Bus.CPURead(cpu.PC + 1)
+	hi := cpu.Bus.CPURead(cpu.PC + 2)
 	return uint16(lo) | (uint16(hi) << 8)
 }
 
 func (cpu *CPU) fetchAbsoluteX() uint16 {
-	lo := cpu.Memory[cpu.PC+1]
-	hi := cpu.Memory[cpu.PC+2]
+	lo := cpu.Bus.CPURead(cpu.PC + 1)
+	hi := cpu.Bus.CPURead(cpu.PC + 2)
 	addr := uint16(lo) | (uint16(hi) << 8)
 	addr += uint16(cpu.X)
 	return addr
 }
 
 func (cpu *CPU) fetchAbsoluteY() uint16 {
-	lo := cpu.Memory[cpu.PC+1]
-	hi := cpu.Memory[cpu.PC+2]
+	lo := cpu.Bus.CPURead(cpu.PC + 1)
+	hi := cpu.Bus.CPURead(cpu.PC + 2)
 	addr := uint16(lo) | (uint16(hi) << 8)
 	addr += uint16(cpu.Y)
 	return addr
 }
 
 func (cpu *CPU) fetchIndirectX() uint16 {
-	base := cpu.Memory[cpu.PC+1]
+	base := cpu.Bus.CPURead(cpu.PC + 1)
 	addr := (uint16(base) + uint16(cpu.X)) & 0x00FF
-	lo := cpu.Memory[addr]
-	hi := cpu.Memory[(addr+1)&0x00FF]
+	lo := cpu.Bus.CPURead(addr)
+	hi := cpu.Bus.CPURead((addr + 1) & 0x00FF)
 	return uint16(lo) | (uint16(hi) << 8)
 }
 
 func (cpu *CPU) fetchIndirectY() uint16 {
-	base := cpu.Memory[cpu.PC+1]
-	lo := cpu.Memory[base]
-	hi := cpu.Memory[(base+1)&0x00FF]
+	base := cpu.Bus.CPURead(cpu.PC + 1)
+	lo := cpu.Bus.CPURead(uint16(base))
+	hi := cpu.Bus.CPURead(uint16(base+1) & 0x00FF)
 	addr := uint16(lo) | (uint16(hi) << 8)
 	addr += uint16(cpu.Y)
 	return addr
 }
 
 func (cpu *CPU) fetchIndirect() uint16 {
-	lo := cpu.Memory[cpu.PC+1]
-	hi := cpu.Memory[cpu.PC+2]
+	lo := cpu.Bus.CPURead(cpu.PC + 1)
+	hi := cpu.Bus.CPURead(cpu.PC + 2)
 	addr := uint16(lo) | (uint16(hi) << 8)
 	// Специальная проверка на баг
 	var indirectAddr uint16
 	if lo == 0xFF {
-		indirectAddr = uint16(cpu.Memory[addr]) | (uint16(cpu.Memory[addr&0xFF00]) << 8)
+		indirectAddr = uint16(cpu.Bus.CPURead(addr)) | (uint16(cpu.Bus.CPURead(addr&0xFF00)) << 8)
 	} else {
-		indirectAddr = uint16(cpu.Memory[addr]) | (uint16(cpu.Memory[addr+1]) << 8)
+		indirectAddr = uint16(cpu.Bus.CPURead(addr)) | (uint16(cpu.Bus.CPURead(addr+1)) << 8)
 	}
 	return indirectAddr
 }
@@ -227,7 +232,7 @@ func (cpu *CPU) fetchAccumulator() uint16 {
 }
 
 func (cpu *CPU) fetchRelative() uint16 {
-	offset := int8(cpu.Memory[cpu.PC+1])
+	offset := int8(cpu.Bus.CPURead(cpu.PC + 1))
 	return uint16(int32(cpu.PC+2) + int32(offset))
 }
 

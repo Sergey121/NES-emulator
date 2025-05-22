@@ -64,6 +64,7 @@ func init() {
 	initBITInstructions()
 	initDECInstructions()
 	initNOPInstructions()
+	initUnofficialInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) uint16 {
@@ -104,7 +105,7 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 }
 
 func ldaExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.A = value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
@@ -185,7 +186,7 @@ func initLDAInstructions() {
 }
 
 func staExecute(cpu *CPU, addr uint16) {
-	cpu.Memory[addr] = cpu.A
+	cpu.Bus.CPUWrite(addr, cpu.A)
 	// STA does not affect any flags
 }
 
@@ -303,7 +304,7 @@ func initLDXInstructions() {
 }
 
 func ldxExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.X = value
 	cpu.SetFlag(FlagZ, cpu.X == 0)
 	cpu.SetFlag(FlagN, (cpu.X&0x80) != 0)
@@ -357,7 +358,7 @@ func initLDYInstructions() {
 }
 
 func ldyExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.Y = value
 	cpu.SetFlag(FlagZ, cpu.Y == 0)
 	cpu.SetFlag(FlagN, (cpu.Y&0x80) != 0)
@@ -393,7 +394,7 @@ func initSTXInstructions() {
 }
 
 func stxExecute(cpu *CPU, addr uint16) {
-	cpu.Memory[addr] = cpu.X
+	cpu.Bus.CPUWrite(addr, cpu.X)
 	// STX does not affect any flags
 }
 
@@ -427,7 +428,7 @@ func initSTYInstructions() {
 }
 
 func styExecute(cpu *CPU, addr uint16) {
-	cpu.Memory[addr] = cpu.Y
+	cpu.Bus.CPUWrite(addr, cpu.Y)
 	// STY does not affect any flags
 }
 
@@ -709,7 +710,7 @@ func initADCInstructions() {
 }
 
 func adcExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	carry := 0
 	if cpu.GetFlag(FlagC) {
 		carry = 1
@@ -799,7 +800,7 @@ func initSBCInstructions() {
 }
 
 func sbcExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	carryIn := 0
 	if cpu.GetFlag(FlagC) {
 		carryIn = 1
@@ -890,7 +891,7 @@ func initANDInstructions() {
 }
 
 func andExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.A &= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
@@ -971,7 +972,7 @@ func initEORInstructions() {
 }
 
 func eorExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.A ^= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
@@ -1052,7 +1053,7 @@ func initORAInstructions() {
 }
 
 func oraExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.A |= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
@@ -1133,7 +1134,7 @@ func initCMPInstructions() {
 }
 
 func cmpExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	result := uint16(cpu.A) - uint16(value)
 
 	cpu.SetFlag(FlagC, cpu.A >= value)
@@ -1171,7 +1172,7 @@ func initCPXInstructions() {
 }
 
 func cpxExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	result := uint16(cpu.X) - uint16(value)
 
 	cpu.SetFlag(FlagC, cpu.X >= value)
@@ -1209,7 +1210,7 @@ func initCPYInstructions() {
 }
 
 func cpyExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	result := uint16(cpu.Y) - uint16(value)
 
 	cpu.SetFlag(FlagC, cpu.Y >= value)
@@ -1274,10 +1275,10 @@ func aslAExecute(cpu *CPU, _ uint16) {
 }
 
 func aslExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.SetFlag(FlagC, (value&0x80) != 0)
 	value <<= 1
-	cpu.Memory[addr] = value
+	cpu.Bus.CPUWrite(addr, value)
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, (value&0x80) != 0)
 }
@@ -1338,10 +1339,10 @@ func lsrAExecute(cpu *CPU, _ uint16) {
 }
 
 func lsrExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.SetFlag(FlagC, (value&0x01) != 0)
 	value >>= 1
-	cpu.Memory[addr] = value
+	cpu.Bus.CPUWrite(addr, value)
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, false)
 }
@@ -1405,14 +1406,14 @@ func rorAExecute(cpu *CPU, _ uint16) {
 }
 
 func rorExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	carry := cpu.GetFlag(FlagC)
 	cpu.SetFlag(FlagC, (value&0x01) != 0)
 	value >>= 1
 	if carry {
 		value |= 0x80
 	}
-	cpu.Memory[addr] = value
+	cpu.Bus.CPUWrite(addr, value)
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, (value&0x80) != 0)
 }
@@ -1478,14 +1479,14 @@ func rolAExecute(cpu *CPU, _ uint16) {
 }
 
 func rolExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	carry := cpu.GetFlag(FlagC)
 	cpu.SetFlag(FlagC, (value&0x80) != 0)
 	value <<= 1
 	if carry {
 		value |= 0x01
 	}
-	cpu.Memory[addr] = value
+	cpu.Bus.CPUWrite(addr, value)
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, (value&0x80) != 0)
 }
@@ -1551,8 +1552,8 @@ func initBRKInstructions() {
 			cpu.Push(cpu.P | FlagB | FlagU)
 
 			// Переход по адресу из вектора прерываний (0xFFFE/F)
-			lo := cpu.Memory[0xFFFE]
-			hi := cpu.Memory[0xFFFF]
+			lo := cpu.Bus.CPURead(0xFFFE)
+			hi := cpu.Bus.CPURead(0xFFFF)
 			cpu.PC = uint16(lo) | uint16(hi)<<8
 		},
 		ModifiesPC: true,
@@ -1735,8 +1736,8 @@ func initStackInstructions() {
 }
 
 func incExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr] + 1
-	cpu.Memory[addr] = value
+	value := cpu.Bus.CPURead(addr) + 1
+	cpu.Bus.CPUWrite(addr, value)
 	cpu.setZN(value)
 }
 
@@ -1776,7 +1777,7 @@ func initINCInstructions() {
 }
 
 func bitExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr]
+	value := cpu.Bus.CPURead(addr)
 	cpu.SetFlag(FlagZ, cpu.A&value == 0)
 	cpu.SetFlag(FlagV, (value&0x40) != 0) // бит 6 -> V
 	cpu.SetFlag(FlagN, (value&0x80) != 0) // бит 7 -> N
@@ -1802,8 +1803,8 @@ func initBITInstructions() {
 }
 
 func decExecute(cpu *CPU, addr uint16) {
-	value := cpu.Memory[addr] - 1
-	cpu.Memory[addr] = value
+	value := cpu.Bus.CPURead(addr) - 1
+	cpu.Bus.CPUWrite(addr, value)
 	cpu.SetFlag(FlagZ, value == 0)
 	cpu.SetFlag(FlagN, (value&0x80) != 0)
 }
@@ -1851,5 +1852,138 @@ func initNOPInstructions() {
 		Cycles:  2,
 		Mode:    Implied,
 		Execute: func(cpu *CPU, _ uint16) {},
+	}
+}
+
+func initUnofficialInstructions() {
+	// Undocumented NOP instructions
+	// These instructions do nothing but must be correctly decoded to let games run
+
+	var nopExecute = func(c *CPU, _ uint16) {}
+
+	Instructions[0x1A] = Instruction{
+		Name:    "NOP (undocumented)",
+		Opcode:  0x1A,
+		Bytes:   1,
+		Cycles:  2,
+		Mode:    Implied,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x3A] = Instruction{
+		Name:    "NOP (undocumented)",
+		Opcode:  0x3A,
+		Bytes:   1,
+		Cycles:  2,
+		Mode:    Implied,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x5A] = Instruction{
+		Name:    "NOP (undocumented)",
+		Opcode:  0x5A,
+		Bytes:   1,
+		Cycles:  2,
+		Mode:    Implied,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x7A] = Instruction{
+		Name:    "NOP (undocumented)",
+		Opcode:  0x7A,
+		Bytes:   1,
+		Cycles:  2,
+		Mode:    Implied,
+		Execute: nopExecute,
+	}
+
+	Instructions[0xDA] = Instruction{
+		Name:    "NOP (undocumented)",
+		Opcode:  0xDA,
+		Bytes:   1,
+		Cycles:  2,
+		Mode:    Implied,
+		Execute: nopExecute,
+	}
+
+	Instructions[0xFA] = Instruction{
+		Name:    "NOP (undocumented)",
+		Opcode:  0xFA,
+		Bytes:   1,
+		Cycles:  2,
+		Mode:    Implied,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x0C] = Instruction{
+		Name:    "NOP Absolute (undocumented)",
+		Opcode:  0x0C,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    Absolute,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x1C] = Instruction{
+		Name:    "NOP Absolute,X (undocumented)",
+		Opcode:  0x1C,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    AbsoluteX,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x3C] = Instruction{
+		Name:    "NOP Absolute,X (undocumented)",
+		Opcode:  0x3C,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    AbsoluteX,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x5C] = Instruction{
+		Name:    "NOP Absolute,X (undocumented)",
+		Opcode:  0x5C,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    AbsoluteX,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x7C] = Instruction{
+		Name:    "NOP Absolute,X (undocumented)",
+		Opcode:  0x7C,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    AbsoluteX,
+		Execute: nopExecute,
+	}
+
+	Instructions[0xDC] = Instruction{
+		Name:    "NOP Absolute,X (undocumented)",
+		Opcode:  0xDC,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    AbsoluteX,
+		Execute: nopExecute,
+	}
+
+	Instructions[0xFC] = Instruction{
+		Name:    "NOP Absolute,X (undocumented)",
+		Opcode:  0xFC,
+		Bytes:   3,
+		Cycles:  4,
+		Mode:    AbsoluteX,
+		Execute: nopExecute,
+	}
+
+	Instructions[0x82] = Instruction{
+		Name:    "NOP (undocumented)",
+		Opcode:  0x82,
+		Bytes:   2,
+		Cycles:  2,
+		Mode:    Immediate,
+		Execute: nopExecute,
 	}
 }
