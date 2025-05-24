@@ -1,6 +1,9 @@
 package cpu
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type AddressingMode int
 
@@ -26,7 +29,7 @@ type Instruction struct {
 	Bytes      int
 	Cycles     int
 	Mode       AddressingMode
-	Execute    func(cpu *CPU, addr uint16)
+	Execute    func(cpu *CPU, addr uint16, pageCrossed bool)
 	ModifiesPC bool
 }
 
@@ -67,8 +70,9 @@ func init() {
 	initUnofficialInstructions()
 }
 
-func (inst *Instruction) GetAddress(c *CPU) uint16 {
+func (inst *Instruction) GetAddress(c *CPU) (uint16, bool) {
 	var addr uint16
+	var pageCrossed bool
 	switch inst.Mode {
 	case Immediate:
 		addr = c.fetchImediate()
@@ -81,13 +85,13 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 	case Absolute:
 		addr = c.fetchAbsolute()
 	case AbsoluteX:
-		addr = c.fetchAbsoluteX()
+		addr, pageCrossed = c.fetchAbsoluteX()
 	case AbsoluteY:
-		addr = c.fetchAbsoluteY()
+		addr, pageCrossed = c.fetchAbsoluteY()
 	case IndirectX:
 		addr = c.fetchIndirectX()
 	case IndirectY:
-		addr = c.fetchIndirectY()
+		addr, pageCrossed = c.fetchIndirectY()
 	case Indirect:
 		addr = c.fetchIndirect()
 	case Implied:
@@ -101,14 +105,17 @@ func (inst *Instruction) GetAddress(c *CPU) uint16 {
 		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
 		panic(str)
 	}
-	return addr
+	return addr, pageCrossed
 }
 
-func ldaExecute(cpu *CPU, addr uint16) {
+func ldaExecute(cpu *CPU, addr uint16, pageCrossed bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.A = value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+	if pageCrossed {
+		cpu.CyclesLeft += 1
+	}
 }
 
 func initLDAInstructions() {
@@ -185,7 +192,7 @@ func initLDAInstructions() {
 	}
 }
 
-func staExecute(cpu *CPU, addr uint16) {
+func staExecute(cpu *CPU, addr uint16, _ bool) {
 	cpu.Bus.CPUWrite(addr, cpu.A)
 	// STA does not affect any flags
 }
@@ -303,7 +310,7 @@ func initLDXInstructions() {
 	}
 }
 
-func ldxExecute(cpu *CPU, addr uint16) {
+func ldxExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.X = value
 	cpu.SetFlag(FlagZ, cpu.X == 0)
@@ -357,11 +364,15 @@ func initLDYInstructions() {
 	}
 }
 
-func ldyExecute(cpu *CPU, addr uint16) {
+func ldyExecute(cpu *CPU, addr uint16, pageCrossing bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.Y = value
 	cpu.SetFlag(FlagZ, cpu.Y == 0)
 	cpu.SetFlag(FlagN, (cpu.Y&0x80) != 0)
+
+	if pageCrossing {
+		cpu.CyclesLeft += 1
+	}
 }
 
 func initSTXInstructions() {
@@ -393,7 +404,7 @@ func initSTXInstructions() {
 	}
 }
 
-func stxExecute(cpu *CPU, addr uint16) {
+func stxExecute(cpu *CPU, addr uint16, _ bool) {
 	cpu.Bus.CPUWrite(addr, cpu.X)
 	// STX does not affect any flags
 }
@@ -427,7 +438,7 @@ func initSTYInstructions() {
 	}
 }
 
-func styExecute(cpu *CPU, addr uint16) {
+func styExecute(cpu *CPU, addr uint16, _ bool) {
 	cpu.Bus.CPUWrite(addr, cpu.Y)
 	// STY does not affect any flags
 }
@@ -439,7 +450,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.X = cpu.A
 			cpu.SetFlag(FlagZ, cpu.X == 0)
 			cpu.SetFlag(FlagN, (cpu.X&0x80) != 0)
@@ -452,7 +463,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.Y = cpu.A
 			cpu.SetFlag(FlagZ, cpu.Y == 0)
 			cpu.SetFlag(FlagN, (cpu.Y&0x80) != 0)
@@ -465,7 +476,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.X = cpu.SP
 			cpu.SetFlag(FlagZ, cpu.X == 0)
 			cpu.SetFlag(FlagN, (cpu.X&0x80) != 0)
@@ -478,7 +489,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.A = cpu.X
 			cpu.SetFlag(FlagZ, cpu.A == 0)
 			cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
@@ -491,7 +502,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SP = cpu.X
 			// TXS does not affect any flags
 		},
@@ -503,7 +514,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.A = cpu.Y
 			cpu.SetFlag(FlagZ, cpu.A == 0)
 			cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
@@ -516,7 +527,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.X--
 			cpu.setZN(cpu.X)
 		},
@@ -527,7 +538,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.X++
 			cpu.setZN(cpu.X)
 		},
@@ -538,7 +549,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.Y--
 			cpu.setZN(cpu.Y)
 		},
@@ -549,7 +560,7 @@ func initTransferInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.Y++
 			cpu.setZN(cpu.Y)
 		},
@@ -563,7 +574,7 @@ func initFlagInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetFlag(FlagC, false)
 		},
 	}
@@ -574,7 +585,7 @@ func initFlagInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetFlag(FlagC, true)
 		},
 	}
@@ -585,7 +596,7 @@ func initFlagInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetFlag(FlagD, false)
 		},
 	}
@@ -596,7 +607,7 @@ func initFlagInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetFlag(FlagD, true)
 		},
 	}
@@ -607,7 +618,7 @@ func initFlagInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetFlag(FlagI, false)
 		},
 	}
@@ -618,7 +629,7 @@ func initFlagInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetFlag(FlagI, true)
 		},
 	}
@@ -629,7 +640,7 @@ func initFlagInstructions() {
 		Bytes:  1,
 		Cycles: 2,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetFlag(FlagV, false)
 		},
 	}
@@ -709,7 +720,7 @@ func initADCInstructions() {
 	}
 }
 
-func adcExecute(cpu *CPU, addr uint16) {
+func adcExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	carry := 0
 	if cpu.GetFlag(FlagC) {
@@ -799,7 +810,7 @@ func initSBCInstructions() {
 	}
 }
 
-func sbcExecute(cpu *CPU, addr uint16) {
+func sbcExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	carryIn := 0
 	if cpu.GetFlag(FlagC) {
@@ -890,7 +901,7 @@ func initANDInstructions() {
 	}
 }
 
-func andExecute(cpu *CPU, addr uint16) {
+func andExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.A &= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
@@ -971,7 +982,7 @@ func initEORInstructions() {
 	}
 }
 
-func eorExecute(cpu *CPU, addr uint16) {
+func eorExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.A ^= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
@@ -1052,7 +1063,7 @@ func initORAInstructions() {
 	}
 }
 
-func oraExecute(cpu *CPU, addr uint16) {
+func oraExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.A |= value
 	cpu.SetFlag(FlagZ, cpu.A == 0)
@@ -1133,7 +1144,7 @@ func initCMPInstructions() {
 	}
 }
 
-func cmpExecute(cpu *CPU, addr uint16) {
+func cmpExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	result := uint16(cpu.A) - uint16(value)
 
@@ -1171,7 +1182,7 @@ func initCPXInstructions() {
 	}
 }
 
-func cpxExecute(cpu *CPU, addr uint16) {
+func cpxExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	result := uint16(cpu.X) - uint16(value)
 
@@ -1209,7 +1220,7 @@ func initCPYInstructions() {
 	}
 }
 
-func cpyExecute(cpu *CPU, addr uint16) {
+func cpyExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	result := uint16(cpu.Y) - uint16(value)
 
@@ -1265,7 +1276,7 @@ func initASLInstructions() {
 	}
 }
 
-func aslAExecute(cpu *CPU, _ uint16) {
+func aslAExecute(cpu *CPU, _ uint16, _ bool) {
 	value := cpu.A
 	cpu.SetFlag(FlagC, (value&0x80) != 0)
 	value <<= 1
@@ -1274,7 +1285,7 @@ func aslAExecute(cpu *CPU, _ uint16) {
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }
 
-func aslExecute(cpu *CPU, addr uint16) {
+func aslExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.SetFlag(FlagC, (value&0x80) != 0)
 	value <<= 1
@@ -1329,7 +1340,7 @@ func initLSRInstructions() {
 	}
 }
 
-func lsrAExecute(cpu *CPU, _ uint16) {
+func lsrAExecute(cpu *CPU, _ uint16, _ bool) {
 	value := cpu.A
 	cpu.SetFlag(FlagC, (value&0x01) != 0)
 	value >>= 1
@@ -1338,7 +1349,7 @@ func lsrAExecute(cpu *CPU, _ uint16) {
 	cpu.SetFlag(FlagN, false)
 }
 
-func lsrExecute(cpu *CPU, addr uint16) {
+func lsrExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.SetFlag(FlagC, (value&0x01) != 0)
 	value >>= 1
@@ -1392,7 +1403,7 @@ func initRORInstructions() {
 	}
 }
 
-func rorAExecute(cpu *CPU, _ uint16) {
+func rorAExecute(cpu *CPU, _ uint16, _ bool) {
 	value := cpu.A
 	carry := cpu.GetFlag(FlagC)
 	cpu.SetFlag(FlagC, (value&0x01) != 0)
@@ -1405,7 +1416,7 @@ func rorAExecute(cpu *CPU, _ uint16) {
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }
 
-func rorExecute(cpu *CPU, addr uint16) {
+func rorExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	carry := cpu.GetFlag(FlagC)
 	cpu.SetFlag(FlagC, (value&0x01) != 0)
@@ -1465,7 +1476,7 @@ func initROLInstructions() {
 	}
 }
 
-func rolAExecute(cpu *CPU, _ uint16) {
+func rolAExecute(cpu *CPU, _ uint16, _ bool) {
 	value := cpu.A
 	carry := cpu.GetFlag(FlagC)
 	cpu.SetFlag(FlagC, (value&0x80) != 0)
@@ -1478,7 +1489,7 @@ func rolAExecute(cpu *CPU, _ uint16) {
 	cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
 }
 
-func rolExecute(cpu *CPU, addr uint16) {
+func rolExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	carry := cpu.GetFlag(FlagC)
 	cpu.SetFlag(FlagC, (value&0x80) != 0)
@@ -1498,7 +1509,7 @@ func initRTIInstructions() {
 		Bytes:  1,
 		Cycles: 6,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			status := cpu.Pull()
 			cpu.SetStatus(status)
 			cpu.PC = cpu.Pull16()
@@ -1514,7 +1525,7 @@ func initRTSInstructions() {
 		Bytes:  1,
 		Cycles: 6,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.PC = cpu.Pull16() + 1
 		},
 		ModifiesPC: true,
@@ -1528,7 +1539,7 @@ func initJSRInstructions() {
 		Bytes:  3,
 		Cycles: 6,
 		Mode:   Absolute,
-		Execute: func(cpu *CPU, addr uint16) {
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
 			// Push address of last byte of JSR instruction (PC+2)
 			cpu.Push16(cpu.PC + 2)
 			cpu.PC = addr
@@ -1544,7 +1555,7 @@ func initBRKInstructions() {
 		Bytes:  2, // формально 2 байта
 		Cycles: 7,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			// Push PC + 2 на стек (указатель на следующую инструкцию)
 			cpu.Push16(cpu.PC + 2)
 
@@ -1582,20 +1593,19 @@ func initJMPInstructions() {
 	}
 }
 
-func jmpExecute(cpu *CPU, addr uint16) {
+func jmpExecute(cpu *CPU, addr uint16, _ bool) {
 	cpu.PC = addr
 }
 
 func initBranchInstructions() {
-	var branchExecuteWrapper = func(check func(cpu *CPU) bool) func(cpu *CPU, addr uint16) {
-		return func(cpu *CPU, addr uint16) {
+	var branchExecuteWrapper = func(check func(cpu *CPU) bool) func(cpu *CPU, addr uint16, _ bool) {
+		return func(cpu *CPU, addr uint16, _ bool) {
 			if check(cpu) {
-				cpu.Cycles += 1
-
-				oldPC := cpu.PC + 1
-
-				if (oldPC & 0xFF00) != (addr & 0xFF00) {
-					cpu.Cycles += 1
+				oldPC := cpu.PC + 2
+				cpu.PC = addr
+				cpu.CyclesLeft += 1 // (!) а не cpu.Cycles
+				if (oldPC & 0xFF00) != (cpu.PC & 0xFF00) {
+					cpu.CyclesLeft += 1
 				}
 
 				cpu.PC = addr
@@ -1693,7 +1703,7 @@ func initStackInstructions() {
 		Bytes:  1,
 		Cycles: 3,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.Push(cpu.A)
 		},
 	}
@@ -1704,7 +1714,7 @@ func initStackInstructions() {
 		Bytes:  1,
 		Cycles: 4,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.A = cpu.Pull()
 			// cpu.SetFlag(FlagZ, cpu.A == 0)
 			// cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
@@ -1718,7 +1728,7 @@ func initStackInstructions() {
 		Bytes:  1,
 		Cycles: 3,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.Push(cpu.P | FlagB | FlagU)
 		},
 	}
@@ -1729,13 +1739,13 @@ func initStackInstructions() {
 		Bytes:  1,
 		Cycles: 4,
 		Mode:   Implied,
-		Execute: func(cpu *CPU, _ uint16) {
+		Execute: func(cpu *CPU, _ uint16, _ bool) {
 			cpu.SetStatus(cpu.Pull() | FlagU)
 		},
 	}
 }
 
-func incExecute(cpu *CPU, addr uint16) {
+func incExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr) + 1
 	cpu.Bus.CPUWrite(addr, value)
 	cpu.setZN(value)
@@ -1776,7 +1786,7 @@ func initINCInstructions() {
 	}
 }
 
-func bitExecute(cpu *CPU, addr uint16) {
+func bitExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.SetFlag(FlagZ, cpu.A&value == 0)
 	cpu.SetFlag(FlagV, (value&0x40) != 0) // бит 6 -> V
@@ -1802,7 +1812,7 @@ func initBITInstructions() {
 	}
 }
 
-func decExecute(cpu *CPU, addr uint16) {
+func decExecute(cpu *CPU, addr uint16, _ bool) {
 	value := cpu.Bus.CPURead(addr) - 1
 	cpu.Bus.CPUWrite(addr, value)
 	cpu.SetFlag(FlagZ, value == 0)
@@ -1851,7 +1861,7 @@ func initNOPInstructions() {
 		Bytes:   1,
 		Cycles:  2,
 		Mode:    Implied,
-		Execute: func(cpu *CPU, _ uint16) {},
+		Execute: func(cpu *CPU, _ uint16, _ bool) {},
 	}
 }
 
@@ -1859,7 +1869,7 @@ func initUnofficialInstructions() {
 	// Undocumented NOP instructions
 	// These instructions do nothing but must be correctly decoded to let games run
 
-	var nopExecute = func(c *CPU, _ uint16) {}
+	var nopExecute = func(c *CPU, _ uint16, _ bool) {}
 
 	Instructions[0x1A] = Instruction{
 		Name:    "NOP (undocumented)",
@@ -1986,4 +1996,17 @@ func initUnofficialInstructions() {
 		Mode:    Immediate,
 		Execute: nopExecute,
 	}
+}
+
+func (inst *Instruction) Disassemble(cpu *CPU, addr uint16) string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%02X ", inst.Opcode))
+	if inst.Bytes > 1 {
+		sb.WriteString(fmt.Sprintf("%02X ", cpu.Bus.CPURead(addr+1)))
+	}
+	if inst.Bytes > 2 {
+		sb.WriteString(fmt.Sprintf("%02X ", cpu.Bus.CPURead(addr+2)))
+	}
+	sb.WriteString(inst.Name)
+	return sb.String()
 }

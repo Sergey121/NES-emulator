@@ -83,3 +83,7 @@ func (b *Bus) ClockPPU() {
 		b.PPU.Step()
 	}
 }
+
+func (b *Bus) StepPPU() {
+	b.PPU.Step()
+}

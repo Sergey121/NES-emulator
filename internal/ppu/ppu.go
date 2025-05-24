@@ -66,8 +66,8 @@ type PPU struct {
 
 func (ppu *PPU) Reset() {
 	// Сразу переход на пред-рендер-линию
-	ppu.scanline = 261
-	ppu.cycle = 0
+	ppu.scanline = 0
+	ppu.cycle = 21
 	ppu.frame = 0
 	// Обнулить адреса и лэтчи
 	ppu.v = 0
@@ -289,10 +289,10 @@ func (ppu *PPU) write(addr uint16, value byte) {
 func (ppu *PPU) fetchNameTableByte() {
 	addr := 0x2000 | (ppu.v & 0x0FFF)
 	tile := ppu.read(addr)
-	fmt.Printf(
-		"fetch NT: scanline=%3d cycle=%3d  v=%04X  tile=%02X\n",
-		ppu.scanline, ppu.cycle, ppu.v&0x0FFF, tile,
-	)
+	// fmt.Printf(
+	// 	"fetch NT: scanline=%3d cycle=%3d  v=%04X  tile=%02X\n",
+	// 	ppu.scanline, ppu.cycle, ppu.v&0x0FFF, tile,
+	// )
 	ppu.nameTableByte = tile
 }
 

@@ -10,6 +10,7 @@ type CPUBus interface {
 	ShouldTriggerNMI() bool
 	AcknowledgeNMI()
 	ClockPPU()
+	StepPPU()
 }
 
 type CPU struct {
@@ -23,7 +24,8 @@ type CPU struct {
 	// Memory [0x10000]byte
 	Cycles int
 
-	Bus CPUBus
+	Bus        CPUBus
+	CyclesLeft int
 }
 
 func New() *CPU {
@@ -56,6 +58,7 @@ func (c *CPU) Reset() {
 	c.X = 0
 	c.Y = 0
 	c.P = FlagI | FlagU
+	c.Cycles = 7
 }
 
 func (c *CPU) SetFlag(flag byte, value bool) {
@@ -108,6 +111,44 @@ func (c *CPU) Step() {
 	c.Execute()
 }
 
+func (cpu *CPU) Clock() {
+	// PPU тикает 3 раза за каждый такт CPU
+	cpu.Bus.StepPPU()
+	cpu.Bus.StepPPU()
+	cpu.Bus.StepPPU()
+
+	if cpu.CyclesLeft == 0 {
+		if cpu.Bus.ShouldTriggerNMI() {
+			cpu.TriggerNMI()
+			cpu.Bus.AcknowledgeNMI()
+		}
+		opcode := cpu.Bus.CPURead(cpu.PC)
+		inst, ok := Instructions[opcode]
+		if !ok {
+			panic(fmt.Sprintf("Unknown opcode: %02X at %04X", opcode, cpu.PC))
+		}
+		addr, pageCrossed := inst.GetAddress(cpu)
+		cpu.CyclesLeft = inst.Cycles
+		inst.Execute(cpu, addr, pageCrossed)
+		if !inst.ModifiesPC {
+			cpu.PC += uint16(inst.Bytes)
+		}
+	}
+	cpu.CyclesLeft--
+	cpu.Cycles++
+}
+
+func (c *CPU) ClockOnce() {
+
+	// for i := 0; i < 3; i++ {
+	// c.Bus.ClockPPU()
+	// c.Cycles++
+	// }
+
+	c.Clock()
+
+}
+
 func (c *CPU) Execute() {
 	opcode := c.Bus.CPURead(c.PC)
 	inst, ok := Instructions[opcode]
@@ -116,9 +157,9 @@ func (c *CPU) Execute() {
 		panic(str)
 	}
 
-	addr := inst.GetAddress(c)
+	addr, pageCrossed := inst.GetAddress(c)
 
-	inst.Execute(c, addr)
+	inst.Execute(c, addr, pageCrossed)
 	c.Cycles += inst.Cycles
 
 	if !inst.ModifiesPC {
@@ -126,12 +167,20 @@ func (c *CPU) Execute() {
 	}
 }
 
-func (cpu *CPU) Trace() string {
-	opcode := cpu.Bus.CPURead(cpu.PC)
+func (cpuInstance *CPU) Trace(ppuScanline, ppuCycle int) string {
+	opcode := cpuInstance.Bus.CPURead(cpuInstance.PC)
+	inst, ok := Instructions[opcode]
+
+	if !ok {
+		return fmt.Sprintf("Unknown opcode: 0x%02X", opcode)
+	}
+
+	// Получить дизассемблированную строку инструкции (например, "JMP $C5F5")
+	disasm := inst.Disassemble(cpuInstance, cpuInstance.PC)
+
 	return fmt.Sprintf(
-		"PC: %04X  OPCODE: %02X  A:%02X X:%02X Y:%02X P:%02X SP:%02X",
-		cpu.PC, opcode,
-		cpu.A, cpu.X, cpu.Y, cpu.P, cpu.SP,
+		"%04X  %-28sA:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d",
+		cpuInstance.PC, disasm, cpuInstance.A, cpuInstance.X, cpuInstance.Y, cpuInstance.P, cpuInstance.SP, ppuScanline, ppuCycle, cpuInstance.Cycles,
 	)
 }
 
@@ -176,20 +225,22 @@ func (cpu *CPU) fetchAbsolute() uint16 {
 	return uint16(lo) | (uint16(hi) << 8)
 }
 
-func (cpu *CPU) fetchAbsoluteX() uint16 {
+func (cpu *CPU) fetchAbsoluteX() (uint16, bool) {
 	lo := cpu.Bus.CPURead(cpu.PC + 1)
 	hi := cpu.Bus.CPURead(cpu.PC + 2)
-	addr := uint16(lo) | (uint16(hi) << 8)
-	addr += uint16(cpu.X)
-	return addr
+	baseAddr := uint16(lo) | (uint16(hi) << 8)
+	effectiveAddr := baseAddr + uint16(cpu.X)
+	pageCrossed := (baseAddr & 0xFF00) != (effectiveAddr & 0xFF00)
+	return effectiveAddr, pageCrossed
 }
 
-func (cpu *CPU) fetchAbsoluteY() uint16 {
+func (cpu *CPU) fetchAbsoluteY() (uint16, bool) {
 	lo := cpu.Bus.CPURead(cpu.PC + 1)
 	hi := cpu.Bus.CPURead(cpu.PC + 2)
-	addr := uint16(lo) | (uint16(hi) << 8)
-	addr += uint16(cpu.Y)
-	return addr
+	baseAddr := uint16(lo) | (uint16(hi) << 8)
+	effectiveAddr := baseAddr + uint16(cpu.Y)
+	pageCrossed := (baseAddr & 0xFF00) != (effectiveAddr & 0xFF00)
+	return effectiveAddr, pageCrossed
 }
 
 func (cpu *CPU) fetchIndirectX() uint16 {
@@ -200,13 +251,14 @@ func (cpu *CPU) fetchIndirectX() uint16 {
 	return uint16(lo) | (uint16(hi) << 8)
 }
 
-func (cpu *CPU) fetchIndirectY() uint16 {
+func (cpu *CPU) fetchIndirectY() (uint16, bool) {
 	base := cpu.Bus.CPURead(cpu.PC + 1)
 	lo := cpu.Bus.CPURead(uint16(base))
 	hi := cpu.Bus.CPURead(uint16(base+1) & 0x00FF)
-	addr := uint16(lo) | (uint16(hi) << 8)
-	addr += uint16(cpu.Y)
-	return addr
+	baseAddr := uint16(lo) | (uint16(hi) << 8)
+	effectiveAddr := baseAddr + uint16(cpu.Y)
+	pageCrossed := (baseAddr & 0xFF00) != (effectiveAddr & 0xFF00)
+	return effectiveAddr, pageCrossed
 }
 
 func (cpu *CPU) fetchIndirect() uint16 {
