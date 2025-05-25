@@ -68,6 +68,10 @@ func init() {
 	initDECInstructions()
 	initNOPInstructions()
 	initUnofficialInstructions()
+	initLAXInstructions()
+	initSAXInstructions()
+	initRLAInstructions()
+	initDCPInstructions()
 }
 
 func (inst *Instruction) GetAddress(c *CPU) (uint16, bool) {
@@ -99,7 +103,7 @@ func (inst *Instruction) GetAddress(c *CPU) (uint16, bool) {
 	case Accumulator:
 		addr = c.fetchAccumulator()
 	case Relative:
-		addr = c.fetchRelative()
+		addr, pageCrossed = c.fetchRelative()
 
 	default:
 		str := fmt.Sprintf("Unknown addressing mode: %d", inst.Mode)
@@ -310,11 +314,15 @@ func initLDXInstructions() {
 	}
 }
 
-func ldxExecute(cpu *CPU, addr uint16, _ bool) {
+func ldxExecute(cpu *CPU, addr uint16, pageCrossed bool) {
 	value := cpu.Bus.CPURead(addr)
 	cpu.X = value
 	cpu.SetFlag(FlagZ, cpu.X == 0)
 	cpu.SetFlag(FlagN, (cpu.X&0x80) != 0)
+
+	if pageCrossed {
+		cpu.CyclesLeft += 1
+	}
 }
 
 func initLDYInstructions() {
@@ -808,6 +816,17 @@ func initSBCInstructions() {
 		Execute: sbcExecute,
 		Mode:    IndirectY,
 	}
+
+	Instructions[0xEB] = Instruction{
+		Name:       "SBC Illegal Immediate",
+		Opcode:     0xEB,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Immediate,
+		Execute:    sbcExecute,
+		ModifiesPC: false,
+	}
+
 }
 
 func sbcExecute(cpu *CPU, addr uint16, _ bool) {
@@ -1337,6 +1356,7 @@ func initLSRInstructions() {
 		Bytes:   3,
 		Cycles:  7,
 		Execute: lsrExecute,
+		Mode:    AbsoluteX,
 	}
 }
 
@@ -1598,17 +1618,14 @@ func jmpExecute(cpu *CPU, addr uint16, _ bool) {
 }
 
 func initBranchInstructions() {
-	var branchExecuteWrapper = func(check func(cpu *CPU) bool) func(cpu *CPU, addr uint16, _ bool) {
-		return func(cpu *CPU, addr uint16, _ bool) {
+	var branchExecuteWrapper = func(check func(cpu *CPU) bool) func(cpu *CPU, addr uint16, pageCrossed bool) {
+		return func(cpu *CPU, addr uint16, pageCrossed bool) {
 			if check(cpu) {
-				oldPC := cpu.PC + 2
 				cpu.PC = addr
-				cpu.CyclesLeft += 1 // (!) а не cpu.Cycles
-				if (oldPC & 0xFF00) != (cpu.PC & 0xFF00) {
+				cpu.CyclesLeft += 1
+				if pageCrossed {
 					cpu.CyclesLeft += 1
 				}
-
-				cpu.PC = addr
 			} else {
 				cpu.PC += 2
 			}
@@ -1740,7 +1757,8 @@ func initStackInstructions() {
 		Cycles: 4,
 		Mode:   Implied,
 		Execute: func(cpu *CPU, _ uint16, _ bool) {
-			cpu.SetStatus(cpu.Pull() | FlagU)
+			// cpu.SetStatus(cpu.Pull() | FlagU)
+			cpu.SetStatus((cpu.Pull() &^ FlagB) | FlagU)
 		},
 	}
 }
@@ -1996,6 +2014,434 @@ func initUnofficialInstructions() {
 		Mode:    Immediate,
 		Execute: nopExecute,
 	}
+
+	Instructions[0x04] = Instruction{
+		Name:       "NOP Illegal",
+		Opcode:     0x04,
+		Bytes:      2,
+		Cycles:     3,
+		Mode:       ZeroPage,
+		Execute:    func(cpu *CPU, addr uint16, _ bool) {},
+		ModifiesPC: false,
+	}
+
+	Instructions[0x44] = Instruction{
+		Name:       "NOP Illegal",
+		Opcode:     0x44,
+		Bytes:      2,
+		Cycles:     3,
+		Mode:       ZeroPage,                               // Это NOP с адресацией ZeroPage
+		Execute:    func(cpu *CPU, addr uint16, _ bool) {}, // ничего не делает
+		ModifiesPC: false,
+	}
+
+	Instructions[0x64] = Instruction{
+		Name:       "NOP Illegal",
+		Opcode:     0x64,
+		Bytes:      2,
+		Cycles:     3,
+		Mode:       ZeroPage,                               // Это NOP с адресацией ZeroPage
+		Execute:    func(cpu *CPU, addr uint16, _ bool) {}, // ничего не делает
+		ModifiesPC: false,
+	}
+
+	// ZeroPage,X NOPs
+	for _, code := range []byte{0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4} {
+		Instructions[code] = Instruction{
+			Name:       "NOP Illegal",
+			Opcode:     code,
+			Bytes:      2,
+			Cycles:     4,
+			Mode:       ZeroPageX,
+			Execute:    func(cpu *CPU, addr uint16, _ bool) {},
+			ModifiesPC: false,
+		}
+	}
+
+	for _, code := range []byte{0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC} {
+		Instructions[code] = Instruction{
+			Name:   "NOP Illegal",
+			Opcode: code,
+			Bytes:  3,
+			Cycles: 4, // иногда 4 или 4 (+1 при page crossing, но тут не критично)
+			Mode:   AbsoluteX,
+			Execute: func(cpu *CPU, addr uint16, pageCrossed bool) {
+				if pageCrossed {
+					cpu.CyclesLeft += 1
+				}
+			},
+			ModifiesPC: false,
+		}
+	}
+
+	Instructions[0x80] = Instruction{
+		Name:       "NOP Illegal",
+		Opcode:     0x80,
+		Bytes:      2,
+		Cycles:     2,
+		Mode:       Immediate, // ВНИМАНИЕ: Immediate addressing mode!
+		Execute:    func(cpu *CPU, addr uint16, _ bool) {},
+		ModifiesPC: false,
+	}
+
+}
+
+func initLAXInstructions() {
+	// LAX (Indirect,X)
+	Instructions[0xA3] = Instruction{
+		Name:   "LAX (Indirect,X) Illegal",
+		Opcode: 0xA3,
+		Bytes:  2,
+		Cycles: 6,
+		Mode:   IndirectX,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			value := cpu.Bus.CPURead(addr)
+			cpu.A = value
+			cpu.X = value
+			cpu.SetFlag(FlagZ, value == 0)
+			cpu.SetFlag(FlagN, value&0x80 != 0)
+		},
+		ModifiesPC: false,
+	}
+
+	// LAX ZeroPage
+	Instructions[0xA7] = Instruction{
+		Name:   "LAX ZeroPage Illegal",
+		Opcode: 0xA7,
+		Bytes:  2,
+		Cycles: 3,
+		Mode:   ZeroPage,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			value := cpu.Bus.CPURead(addr)
+			cpu.A = value
+			cpu.X = value
+			cpu.SetFlag(FlagZ, value == 0)
+			cpu.SetFlag(FlagN, value&0x80 != 0)
+		},
+		ModifiesPC: false,
+	}
+
+	// LAX Absolute
+	Instructions[0xAF] = Instruction{
+		Name:   "LAX Absolute Illegal",
+		Opcode: 0xAF,
+		Bytes:  3,
+		Cycles: 4,
+		Mode:   Absolute,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			value := cpu.Bus.CPURead(addr)
+			cpu.A = value
+			cpu.X = value
+			cpu.SetFlag(FlagZ, value == 0)
+			cpu.SetFlag(FlagN, value&0x80 != 0)
+		},
+		ModifiesPC: false,
+	}
+
+	// LAX (Indirect),Y
+	Instructions[0xB3] = Instruction{
+		Name:   "LAX (Indirect),Y Illegal",
+		Opcode: 0xB3,
+		Bytes:  2,
+		Cycles: 5, // +1 при page crossing
+		Mode:   IndirectY,
+		Execute: func(cpu *CPU, addr uint16, pageCrossed bool) {
+			value := cpu.Bus.CPURead(addr)
+			cpu.A = value
+			cpu.X = value
+			cpu.SetFlag(FlagZ, value == 0)
+			cpu.SetFlag(FlagN, value&0x80 != 0)
+			if pageCrossed {
+				cpu.CyclesLeft += 1
+			}
+		},
+		ModifiesPC: false,
+	}
+
+	// LAX ZeroPage,Y
+	Instructions[0xB7] = Instruction{
+		Name:   "LAX ZeroPage,Y Illegal",
+		Opcode: 0xB7,
+		Bytes:  2,
+		Cycles: 4,
+		Mode:   ZeroPageY,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			value := cpu.Bus.CPURead(addr)
+			cpu.A = value
+			cpu.X = value
+			cpu.SetFlag(FlagZ, value == 0)
+			cpu.SetFlag(FlagN, value&0x80 != 0)
+		},
+		ModifiesPC: false,
+	}
+
+	// LAX Absolute,Y
+	Instructions[0xBF] = Instruction{
+		Name:   "LAX Absolute,Y Illegal",
+		Opcode: 0xBF,
+		Bytes:  3,
+		Cycles: 4, // +1 при page crossing
+		Mode:   AbsoluteY,
+		Execute: func(cpu *CPU, addr uint16, pageCrossed bool) {
+			value := cpu.Bus.CPURead(addr)
+			cpu.A = value
+			cpu.X = value
+			cpu.SetFlag(FlagZ, value == 0)
+			cpu.SetFlag(FlagN, value&0x80 != 0)
+			if pageCrossed {
+				cpu.CyclesLeft += 1
+			}
+		},
+		ModifiesPC: false,
+	}
+
+}
+
+func initSAXInstructions() {
+	Instructions[0x83] = Instruction{
+		Name:   "SAX (Indirect,X) Illegal",
+		Opcode: 0x83,
+		Bytes:  2,
+		Cycles: 6,
+		Mode:   IndirectX,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			value := cpu.A & cpu.X
+			cpu.Bus.CPUWrite(addr, value)
+		},
+		ModifiesPC: false,
+	}
+
+	// SAX ZeroPage
+	Instructions[0x87] = Instruction{
+		Name:   "SAX ZeroPage Illegal",
+		Opcode: 0x87,
+		Bytes:  2,
+		Cycles: 3,
+		Mode:   ZeroPage,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			cpu.Bus.CPUWrite(addr, cpu.A&cpu.X)
+		},
+		ModifiesPC: false,
+	}
+
+	// SAX Absolute
+	Instructions[0x8F] = Instruction{
+		Name:   "SAX Absolute Illegal",
+		Opcode: 0x8F,
+		Bytes:  3,
+		Cycles: 4,
+		Mode:   Absolute,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			cpu.Bus.CPUWrite(addr, cpu.A&cpu.X)
+		},
+		ModifiesPC: false,
+	}
+
+	// SAX (Indirect),Y
+	Instructions[0x97] = Instruction{
+		Name:   "SAX (Indirect),Y Illegal",
+		Opcode: 0x97,
+		Bytes:  2,
+		Cycles: 4,
+		Mode:   ZeroPageY,
+		Execute: func(cpu *CPU, addr uint16, _ bool) {
+			cpu.Bus.CPUWrite(addr, cpu.A&cpu.X)
+		},
+		ModifiesPC: false,
+	}
+}
+
+func initRLAInstructions() {
+	// Универсальный Execute для RLA
+	var rlaExecute = func(cpu *CPU, addr uint16, pageCrossed bool) {
+		value := cpu.Bus.CPURead(addr)
+		carryIn := byte(0)
+		if cpu.GetFlag(FlagC) {
+			carryIn = 1
+		}
+		carryOut := (value >> 7) & 1
+		result := (value << 1) | carryIn
+		cpu.Bus.CPUWrite(addr, result)
+		cpu.SetFlag(FlagC, carryOut != 0)
+		cpu.A = cpu.A & result
+		cpu.SetFlag(FlagZ, cpu.A == 0)
+		cpu.SetFlag(FlagN, (cpu.A&0x80) != 0)
+		if pageCrossed {
+			cpu.CyclesLeft += 1
+		}
+	}
+
+	// RLA (Indirect,X)
+	Instructions[0xC3] = Instruction{
+		Name:       "RLA (Indirect,X) Illegal",
+		Opcode:     0xC3,
+		Bytes:      2,
+		Cycles:     8,
+		Mode:       IndirectX,
+		Execute:    rlaExecute,
+		ModifiesPC: false,
+	}
+
+	// RLA ZeroPage
+	Instructions[0x27] = Instruction{
+		Name:       "RLA ZeroPage Illegal",
+		Opcode:     0x27,
+		Bytes:      2,
+		Cycles:     5,
+		Mode:       ZeroPage,
+		Execute:    rlaExecute,
+		ModifiesPC: false,
+	}
+
+	// RLA Absolute
+	Instructions[0x2F] = Instruction{
+		Name:       "RLA Absolute Illegal",
+		Opcode:     0x2F,
+		Bytes:      3,
+		Cycles:     6,
+		Mode:       Absolute,
+		Execute:    rlaExecute,
+		ModifiesPC: false,
+	}
+
+	// RLA (Indirect),Y
+	Instructions[0x33] = Instruction{
+		Name:       "RLA (Indirect),Y Illegal",
+		Opcode:     0x33,
+		Bytes:      2,
+		Cycles:     8,
+		Mode:       IndirectY,
+		Execute:    rlaExecute,
+		ModifiesPC: false,
+	}
+
+	// RLA ZeroPage,X
+	Instructions[0x37] = Instruction{
+		Name:       "RLA ZeroPage,X Illegal",
+		Opcode:     0x37,
+		Bytes:      2,
+		Cycles:     6,
+		Mode:       ZeroPageX,
+		Execute:    rlaExecute,
+		ModifiesPC: false,
+	}
+
+	// RLA Absolute,Y
+	Instructions[0x3B] = Instruction{
+		Name:       "RLA Absolute,Y Illegal",
+		Opcode:     0x3B,
+		Bytes:      3,
+		Cycles:     7,
+		Mode:       AbsoluteY,
+		Execute:    rlaExecute,
+		ModifiesPC: false,
+	}
+
+	// RLA Absolute,X
+	Instructions[0x3F] = Instruction{
+		Name:       "RLA Absolute,X Illegal",
+		Opcode:     0x3F,
+		Bytes:      3,
+		Cycles:     7,
+		Mode:       AbsoluteX,
+		Execute:    rlaExecute,
+		ModifiesPC: false,
+	}
+}
+
+func initDCPInstructions() {
+	var dcpExecute = func(cpu *CPU, addr uint16, pageCrossed bool) {
+		value := cpu.Bus.CPURead(addr)
+		result := value - 1
+		cpu.Bus.CPUWrite(addr, result)
+
+		cmp := cpu.A - result
+		cpu.SetFlag(FlagC, cpu.A >= result)
+		cpu.SetFlag(FlagZ, (cmp&0xFF) == 0)
+		cpu.SetFlag(FlagN, (cmp&0x80) != 0)
+
+		if pageCrossed {
+			cpu.CyclesLeft += 1
+		}
+	}
+
+	// DCP (Indirect,X)
+	Instructions[0xC3] = Instruction{
+		Name:       "DCP (Indirect,X) Illegal",
+		Opcode:     0xC3,
+		Bytes:      2,
+		Cycles:     8,
+		Mode:       IndirectX,
+		Execute:    dcpExecute,
+		ModifiesPC: false,
+	}
+
+	// DCP ZeroPage
+	Instructions[0xC7] = Instruction{
+		Name:       "DCP ZeroPage Illegal",
+		Opcode:     0xC7,
+		Bytes:      2,
+		Cycles:     5,
+		Mode:       ZeroPage,
+		Execute:    dcpExecute,
+		ModifiesPC: false,
+	}
+
+	// DCP Absolute
+	Instructions[0xCF] = Instruction{
+		Name:       "DCP Absolute Illegal",
+		Opcode:     0xCF,
+		Bytes:      3,
+		Cycles:     6,
+		Mode:       Absolute,
+		Execute:    dcpExecute,
+		ModifiesPC: false,
+	}
+
+	// DCP (Indirect),Y
+	Instructions[0xD3] = Instruction{
+		Name:       "DCP (Indirect),Y Illegal",
+		Opcode:     0xD3,
+		Bytes:      2,
+		Cycles:     8,
+		Mode:       IndirectY,
+		Execute:    dcpExecute,
+		ModifiesPC: false,
+	}
+
+	// DCP ZeroPage,X
+	Instructions[0xD7] = Instruction{
+		Name:       "DCP ZeroPage,X Illegal",
+		Opcode:     0xD7,
+		Bytes:      2,
+		Cycles:     6,
+		Mode:       ZeroPageX,
+		Execute:    dcpExecute,
+		ModifiesPC: false,
+	}
+
+	// DCP Absolute,Y
+	Instructions[0xDB] = Instruction{
+		Name:       "DCP Absolute,Y Illegal",
+		Opcode:     0xDB,
+		Bytes:      3,
+		Cycles:     7,
+		Mode:       AbsoluteY,
+		Execute:    dcpExecute,
+		ModifiesPC: false,
+	}
+
+	// DCP Absolute,X
+	Instructions[0xDF] = Instruction{
+		Name:       "DCP Absolute,X Illegal",
+		Opcode:     0xDF,
+		Bytes:      3,
+		Cycles:     7,
+		Mode:       AbsoluteX,
+		Execute:    dcpExecute,
+		ModifiesPC: false,
+	}
+
 }
 
 func (inst *Instruction) Disassemble(cpu *CPU, addr uint16) string {

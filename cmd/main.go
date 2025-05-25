@@ -100,8 +100,8 @@ func main() {
 
 	cpuInstance.PC = 0xC000
 
-	// 12000 - is ok
-	for i := 0; i < 13000; i++ {
+	// 17000 - is ok
+	for i := 0; i < 17000; i++ {
 		if cpuInstance.CyclesLeft == 0 {
 			fmt.Println(cpuInstance.Trace(ppu.Scanline(), ppu.Cycle()))
 		}

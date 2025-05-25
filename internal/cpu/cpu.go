@@ -74,7 +74,8 @@ func (c *CPU) GetFlag(flag byte) bool {
 }
 
 func (c *CPU) SetStatus(value byte) {
-	c.P = value | 0x20
+	// c.P = value | 0x20
+	c.P = (value &^ FlagB) | FlagU
 }
 
 func (c *CPU) Push(value byte) {
@@ -283,9 +284,11 @@ func (cpu *CPU) fetchAccumulator() uint16 {
 	return 0
 }
 
-func (cpu *CPU) fetchRelative() uint16 {
+func (cpu *CPU) fetchRelative() (uint16, bool) {
 	offset := int8(cpu.Bus.CPURead(cpu.PC + 1))
-	return uint16(int32(cpu.PC+2) + int32(offset))
+	target := uint16(int32(cpu.PC+2) + int32(offset))
+	pageCrossed := ((cpu.PC + 2) & 0xFF00) != (target & 0xFF00)
+	return target, pageCrossed
 }
 
 func (cpu *CPU) setZN(value byte) {
