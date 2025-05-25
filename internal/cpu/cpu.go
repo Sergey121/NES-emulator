@@ -244,12 +244,13 @@ func (cpu *CPU) fetchAbsoluteY() (uint16, bool) {
 	return effectiveAddr, pageCrossed
 }
 
-func (cpu *CPU) fetchIndirectX() uint16 {
-	base := cpu.Bus.CPURead(cpu.PC + 1)
-	addr := (uint16(base) + uint16(cpu.X)) & 0x00FF
-	lo := cpu.Bus.CPURead(addr)
-	hi := cpu.Bus.CPURead((addr + 1) & 0x00FF)
-	return uint16(lo) | (uint16(hi) << 8)
+func (cpu *CPU) fetchIndirectX() (uint16, bool) {
+	zp := cpu.Bus.CPURead(cpu.PC + 1)
+	ind := (zp + cpu.X) & 0xFF
+	lo := cpu.Bus.CPURead(uint16(ind))
+	hi := cpu.Bus.CPURead(uint16((ind + 1) & 0xFF))
+	addr := uint16(lo) | (uint16(hi) << 8)
+	return addr, false // pageCrossed никогда не нужен
 }
 
 func (cpu *CPU) fetchIndirectY() (uint16, bool) {
