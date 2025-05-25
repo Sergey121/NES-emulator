@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/sergey121/nes-emulator/internal/bus"
 	"github.com/sergey121/nes-emulator/internal/cpu"
@@ -72,39 +70,12 @@ func (g *Game) Layout(outW, outH int) (int, int) {
 }
 
 func main() {
-	// game := NewGame()
+	game := NewGame()
 
-	// ebiten.SetWindowSize(512, 480)
-	// ebiten.SetWindowTitle("NES Emulator")
+	ebiten.SetWindowSize(512, 480)
+	ebiten.SetWindowTitle("NES Emulator")
 
-	// if err := ebiten.RunGame(game); err != nil {
-	// 	panic(err)
-	// }
-
-	path := "./assets/roms/nestest (1).nes"
-
-	cartridge, err := rom.LoadRom(path)
-	if err != nil {
+	if err := ebiten.RunGame(game); err != nil {
 		panic(err)
-	}
-
-	ppu := ppu.New(cartridge.CHR)
-	bus := bus.New(ppu, cartridge)
-	cpuInstance := cpu.New()
-
-	cpuInstance.AttachBus(bus)
-	bus.AttachCPU(cpuInstance)
-
-	cpuInstance.Reset()
-	bus.PPU.Reset()
-
-	cpuInstance.PC = 0xC000
-
-	// 26550 - is ok
-	for i := 0; i < 26550; i++ {
-		if cpuInstance.CyclesLeft == 0 {
-			fmt.Println(cpuInstance.Trace(ppu.Scanline(), ppu.Cycle()))
-		}
-		cpuInstance.Clock()
 	}
 }
