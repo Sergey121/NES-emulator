@@ -1,7 +1,6 @@
 package ppu
 
 import (
-	"fmt"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -107,265 +106,146 @@ func (ppu *PPU) ClearNMI() {
 	ppu.nmiOccurred = false
 }
 
-func (ppu *PPU) ReadRegister(addr uint16) byte {
-	switch addr {
-	case 0x2002: // PPUSTATUS
-		value := ppu.PPUStatus
-		ppu.PPUStatus &^= 0x80 // сбрасываем флаг VBlank
-		ppu.w = false          // сбрасываем toggle для SCROLL/ADDR
-		return value
-
-	case 0x2007: // PPUDATA
-		value := ppu.read(ppu.v)
-
-		var result byte
-		if ppu.v >= 0x3F00 && ppu.v < 0x3FFF {
-			result = value
-		} else {
-			result = ppu.bufferedRead
-			ppu.bufferedRead = value
-		}
-
-		if ppu.PPUCTRL&0x04 == 0 {
-			ppu.v += 1
-		} else {
-			ppu.v += 32
-		}
-
-		return result
-	}
-
-	return 0 // Unmapped memory
-}
-
-func (ppu *PPU) WriteRegister(addr uint16, value byte) {
-	switch addr {
-	case 0x2000:
-		ppu.PPUCTRL = value
-
-	case 0x2001:
-		ppu.PPUMASK = value
-
-	case 0x2003:
-		ppu.OAMADDR = value
-
-	case 0x2004:
-		ppu.OAM[ppu.OAMADDR] = value
-		ppu.OAMADDR++
-
-	case 0x2005:
-		if !ppu.w {
-			ppu.t = (ppu.t & 0xFFE0) | uint16(value>>3)
-			ppu.x = value & 0x07
-			ppu.w = true
-		} else {
-			ppu.t = (ppu.t & 0x8FFF) | ((uint16(value) & 0x07) << 12)
-			ppu.t = (ppu.t & 0xFC1F) | ((uint16(value) & 0xF8) << 2)
-			ppu.w = false
-		}
-
-	case 0x2006:
-		if !ppu.w {
-			ppu.t = (ppu.t & 0x00FF) | ((uint16(value) & 0x3F) << 8)
-			ppu.w = true
-		} else {
-			ppu.t = (ppu.t & 0xFF00) | uint16(value)
-			ppu.v = ppu.t
-			ppu.w = false
-		}
-
-	case 0x2007:
-		ppu.write(ppu.v, value)
-		if ppu.PPUCTRL&0x04 == 0 {
-			ppu.v += 1
-		} else {
-			ppu.v += 32
-		}
-	}
-}
-
 func (ppu *PPU) Step() {
-	if ppu.scanline == 241 && ppu.cycle == 1 {
-		ppu.PPUStatus |= 0x80
+	// 1. Инкремент циклов/сканлайнов/кадров
+	ppu.cycle++
+	if ppu.cycle >= 341 { // 0-340 циклов
+		ppu.cycle = 0
+		ppu.scanline++
 
-		if ppu.PPUCTRL&0x80 != 0 {
+		if ppu.scanline >= 262 { // 0-261 сканлайнов
+			ppu.scanline = 0
+			ppu.frame++
+			// Здесь можно сигнализировать об окончании кадра для рендеринга на главном потоке
+		}
+	}
+
+	renderingEnabled := (ppu.PPUMASK&0x08 != 0) || (ppu.PPUMASK&0x10 != 0) // Background or Sprite enable
+
+	// 2. Обработка PPUSTATUS (флаги NMI, Sprite Zero Hit, Sprite Overflow)
+	// Эти флаги сбрасываются в начале пред-рендеринг сканлайна (261)
+	if ppu.scanline == 261 && ppu.cycle == 1 {
+		ppu.PPUStatus &= (^(byte(1 << 7))) // Clear VBlank flag
+		ppu.PPUStatus &= (^(byte(1 << 6))) // Clear Sprite 0 Hit flag
+		ppu.PPUStatus &= (^(byte(1 << 5))) // Clear Sprite Overflow flag
+		ppu.nmiOccurred = false
+	}
+
+	// 3. Логика NMI
+	// NMI генерируется на scanline 241, cycle 1, если включен в PPUCTRL
+	if ppu.scanline == 241 && ppu.cycle == 1 {
+		ppu.PPUStatus |= (1 << 7)    // Set VBlank flag
+		if ppu.PPUCTRL&(1<<7) != 0 { // Если NMI включен
 			ppu.nmiOccurred = true
 		}
 	}
 
-	// VBlank end
-	if ppu.scanline == 261 && ppu.cycle == 1 {
-		// Clear the VBlank flag
-		ppu.PPUStatus &^= 0x80 // Clear the VBlank flag (bit 7)
-		ppu.nmiOccurred = false
-		ppu.nmiOutput = false
-	}
+	// 4. Логика рендеринга (Visible Scanlines 0-239 and Pre-render Scanline 261)
+	if (ppu.scanline >= 0 && ppu.scanline <= 239) || ppu.scanline == 261 {
 
-	// Background rendering
-	if ppu.scanline >= 0 && ppu.scanline < 240 && ppu.cycle >= 1 && ppu.cycle <= 256 {
-		ppu.renderPixel()
+		// --- Фаза предвыборки данных (Background Fetch) ---
+		// PPU Fetch sequence: NT byte -> AT byte -> Low Tile byte -> High Tile byte (every 8 cycles)
+		// These happen on cycles: 1, 9, 17, ... 257, 321, 329
+		// And also on cycles 257, 337, 339 (for reloading shifters for next row/first two tiles)
 
-		switch ppu.cycle % 8 {
-		case 0:
-			ppu.loadBackgroundShifters()
-			ppu.fetchHighTileByte()
-		case 1:
-			// idle — ничего
-		case 2:
-			ppu.fetchNameTableByte()
-		case 4:
-			ppu.fetchAttributeTableByte()
-		case 6:
-			ppu.fetchLowTileByte()
+		if (ppu.cycle >= 1 && ppu.cycle <= 256) || (ppu.cycle >= 321 && ppu.cycle <= 336) { // Cycles where background fetch/render occurs
+			// Каждый 8-й цикл: Загрузка следующего тайла (NameTable, Attribute, Pattern Low, Pattern High)
+			// и загрузка шифтеров
+			switch ppu.cycle % 8 {
+			case 1: // Fetch Nametable Byte
+				ppu.nameTableByte = ppu.Read(0x2000 | (ppu.v & 0x0FFF))
+				// Load shift registers with previous fetched data
+				ppu.loadShiftRegisters()
+			case 3: // Fetch Attribute Table Byte
+				// Address: 0x23C0 | (NT_Y << 6) | (NT_X >> 2) (coarse X/Y for 4x4 group)
+				attrAddr := 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07)
+				attrByte := ppu.Read(attrAddr)
+				// Determine 2-bit palette based on coarse X/Y within the 4x4 group
+				if (ppu.v & 0x40) != 0 { // Coarse Y bit 1
+					attrByte >>= 4
+				}
+				if (ppu.v & 0x02) != 0 { // Coarse X bit 1
+					attrByte >>= 2
+				}
+				ppu.attributeTableByte = (attrByte & 0x03) // 2-bit palette index
+			case 5: // Fetch Low Tile Byte
+				// Base pattern table address: PPUCTRL bit 4 (0 for $0000, 1 for $1000)
+				// Tile index: ppu.nameTableByte
+				// Fine Y scroll: (ppu.v >> 12) & 0x07
+				patternTableAddrLow := (uint16(ppu.PPUCTRL&0x10) << 8) | (uint16(ppu.nameTableByte) << 4) | ((ppu.v >> 12) & 0x07)
+				ppu.lowTileByte = ppu.Read(patternTableAddrLow)
+			case 7: // Fetch High Tile Byte
+				patternTableAddrHigh := ((uint16(ppu.PPUCTRL&0x10) << 8) | (uint16(ppu.nameTableByte) << 4) | ((ppu.v >> 12) & 0x07)) + 8
+				ppu.highTileByte = ppu.Read(patternTableAddrHigh)
+			case 0: // (or 8, if using 1-indexed cycles) - Increments horizontal VRAM address
+				// Increment coarse X
+				ppu.incrementScrollX()
+			}
 		}
 
-		ppu.bgPatternLow <<= 1
-		ppu.bgPatternHigh <<= 1
-		ppu.bgAttributeLow <<= 1
-		ppu.bgAttributeHigh <<= 1
+		// --- Фаза инкремента адреса VRAM ---
+		// Горизонтальный инкремент coarse X происходит на каждом 8-м цикле
+		// (уже обрабатывается в switch ppu.cycle % 8)
 
-		if ppu.cycle%8 == 0 {
-			ppu.incrementCoarseX()
+		// Вертикальный инкремент coarse Y (происходит на cycle 256)
+		if ppu.cycle == 256 && renderingEnabled {
+			ppu.incrementScrollY()
 		}
-		if ppu.cycle == 256 {
-			ppu.incrementY()
+
+		// Копирование горизонтальных битов VRAM из T в V (после 256 цикла)
+		if ppu.cycle == 257 && renderingEnabled {
+			ppu.v = (ppu.v & 0xFBE0) | (ppu.t & 0x041F) // V_horz = T_horz
 		}
-	}
 
-	if (ppu.scanline < 240 || ppu.scanline == 261) && ppu.cycle == 257 {
-		ppu.transferAddressX()
-	}
+		// Копирование вертикальных битов VRAM из T в V (на пред-рендеринг сканлайне 261)
+		if ppu.scanline == 261 && ppu.cycle >= 280 && ppu.cycle <= 304 && renderingEnabled {
+			ppu.v = (ppu.v & 0x841F) | (ppu.t & 0x7BE0) // V_vert = T_vert
+		}
 
-	if ppu.scanline == 261 && ppu.cycle >= 280 && ppu.cycle <= 304 {
-		ppu.transferAddressY()
-	}
-
-	// Increment the cycle
-	ppu.cycle++
-	if ppu.cycle >= 341 {
-		ppu.cycle = 0
-		ppu.scanline++
-
-		if ppu.scanline >= 262 {
-			ppu.scanline = 0
-			ppu.frame++
+		// --- Сдвиг шифтеров (на каждом пикселе) ---
+		// И рендеринг пикселя
+		if ppu.cycle >= 1 && ppu.cycle <= 256 {
+			// Background shift
+			if renderingEnabled {
+				ppu.shiftBackgroundRegisters()
+			}
+			// Render pixel
+			ppu.renderPixel()
 		}
 	}
 }
 
-func (ppu *PPU) read(addr uint16) byte {
-	addr &= 0x3FFF // Mask to 14 bits
+func (ppu *PPU) loadShiftRegisters() {
+	// Загрузка байтов паттерна в младшие 8 бит 16-битных шифтеров
+	// (Старые данные сдвинутся в старшие 8 бит)
+	ppu.bgPatternLow = (ppu.bgPatternLow & 0xFF00) | uint16(ppu.lowTileByte)
+	ppu.bgPatternHigh = (ppu.bgPatternHigh & 0xFF00) | uint16(ppu.highTileByte)
 
-	switch {
-	case addr < 0x2000:
-		return ppu.CHR[addr]
-	case addr < 0x3F00:
-		return ppu.VRAM[(addr-0x2000)%0x800]
-	case addr < 0x4000:
-		return ppu.PaletteTable[(addr-0x3F00)%32]
-	default:
-		return 0 // Unmapped memory
+	// Загрузка атрибутов: каждый бит палитры должен быть расширен на 8 бит.
+	// 0x00 или 0xFF.
+	// Если attributeTableByte & 0x01 = 1, то low bits = 0xFF.
+	// Если attributeTableByte & 0x02 = 1, то high bits = 0xFF.
+	// Мы сохраняем старшие 8 бит (предыдущий тайл) и загружаем новые 8 бит.
+	attrValLow := byte(0)
+	attrValHigh := byte(0)
+	if (ppu.attributeTableByte & 0x01) != 0 {
+		attrValLow = 0xFF // 0b11111111
 	}
-}
-
-func (ppu *PPU) write(addr uint16, value byte) {
-	addr &= 0x3FFF // Mask to 14 bits
-
-	switch {
-	case addr < 0x2000:
-		// CHR RAM (not used, not ROM)
-	case addr < 0x3F00:
-		ppu.VRAM[(addr-0x2000)%0x800] = value
-	case addr < 0x4000:
-		if addr >= 0x3F00 && addr < 0x3F20 {
-			fmt.Printf("Palette write: %04X = %02X\n", addr, value)
-		}
-		ppu.PaletteTable[(addr-0x3F00)%32] = value
-	default:
-		// Unmapped memory
-	}
-}
-
-func (ppu *PPU) fetchNameTableByte() {
-	addr := 0x2000 | (ppu.v & 0x0FFF)
-	tile := ppu.read(addr)
-	// fmt.Printf(
-	// 	"fetch NT: scanline=%3d cycle=%3d  v=%04X  tile=%02X\n",
-	// 	ppu.scanline, ppu.cycle, ppu.v&0x0FFF, tile,
-	// )
-	ppu.nameTableByte = tile
-}
-
-func (ppu *PPU) fetchAttributeTableByte() {
-	// Attribute for current scquqare 2x2 tile
-	coarseX := (ppu.v >> 0) & 0x1F
-	coarseY := (ppu.v >> 5) & 0x1F
-	nameTable := (ppu.v >> 10) & 0x03
-
-	attrAddr := 0x23C0 | (nameTable << 10) | ((coarseY >> 2) << 3) | (coarseX >> 2)
-	ppu.attributeTableByte = ppu.read(attrAddr)
-}
-
-func (ppu *PPU) fetchLowTileByte() {
-	fineY := (ppu.v >> 12) & 0x07
-	tile := ppu.nameTableByte
-	table := (ppu.PPUCTRL >> 4) & 0x01
-	base := uint16(table) * 0x1000
-	addr := base + uint16(tile)*16 + fineY
-	ppu.lowTileByte = ppu.read(addr)
-}
-
-func (ppu *PPU) fetchHighTileByte() {
-	fineY := (ppu.v >> 12) & 0x07
-	tile := ppu.nameTableByte
-	table := (ppu.PPUCTRL >> 4) & 1
-	base := uint16(table) * 0x1000
-	addr := base + uint16(tile)*16 + fineY + 8
-	ppu.highTileByte = ppu.read(addr)
-}
-
-func (ppu *PPU) loadBackgroundShifters() {
-	ppu.bgPatternLow = (ppu.bgPatternLow << 8) | uint16(ppu.lowTileByte)
-	ppu.bgPatternHigh = (ppu.bgPatternHigh << 8) | uint16(ppu.highTileByte)
-
-	// Палитра из attribute byte
-	coarseX := (ppu.v >> 0) & 0x1F
-	coarseY := (ppu.v >> 5) & 0x1F
-	shift := ((coarseY & 0x02) << 1) | (coarseX & 0x02)
-
-	attr := (ppu.attributeTableByte >> shift) & 0x03
-	attrLow := byte(attr & 1)
-	attrHigh := byte((attr >> 1) & 1)
-
-	// Расширяем 2-битную палитру на 8 бит
-	var repeatedLow, repeatedHigh byte
-	if attrLow != 0 {
-		repeatedLow = 0xFF
-	}
-	if attrHigh != 0 {
-		repeatedHigh = 0xFF
+	if (ppu.attributeTableByte & 0x02) != 0 {
+		attrValHigh = 0xFF // 0b11111111
 	}
 
-	ppu.bgAttributeLow = (ppu.bgAttributeLow << 8) | uint16(repeatedLow)
-	ppu.bgAttributeHigh = (ppu.bgAttributeHigh << 8) | uint16(repeatedHigh)
+	ppu.bgAttributeLow = (ppu.bgAttributeLow & 0xFF00) | uint16(attrValLow)
+	ppu.bgAttributeHigh = (ppu.bgAttributeHigh & 0xFF00) | uint16(attrValHigh)
 }
 
-func (ppu *PPU) renderPixel() {
-	x := ppu.cycle - 1
-	y := ppu.scanline
-
-	bit0 := (ppu.bgPatternLow >> (15 - ppu.x)) & 1
-	bit1 := (ppu.bgPatternHigh >> (15 - ppu.x)) & 1
-
-	paletteIndex := (bit1 << 1) | bit0
-
-	attr0 := (ppu.bgAttributeLow >> 15) & 1
-	attr1 := (ppu.bgAttributeHigh >> 15) & 1
-	paletteAttribute := (attr1 << 1) | attr0
-
-	color := byte((paletteAttribute << 2) | paletteIndex)
-
-	ppu.framebuffer[y][x] = color
+func (ppu *PPU) shiftBackgroundRegisters() {
+	// Сдвигаем все шифтеры на 1 бит влево.
+	// Это перемещает биты к старшему концу, где мы будем их извлекать.
+	ppu.bgPatternLow <<= 1
+	ppu.bgPatternHigh <<= 1
+	ppu.bgAttributeLow <<= 1
+	ppu.bgAttributeHigh <<= 1
 }
 
 var nesPalette = [64]color.RGBA{
@@ -445,37 +325,289 @@ func (p *PPU) DrawToImage(dst *ebiten.Image) {
 	}
 }
 
-func (ppu *PPU) incrementCoarseX() {
-	if (ppu.v & 0x001F) == 31 {
-		ppu.v &= ^uint16(0x001F) // coarse X = 0
-		ppu.v ^= 0x0400          // switch horizontal nametable
-	} else {
-		ppu.v += 1 // increment coarse X
-	}
-}
+func (ppu *PPU) Read(addr uint16) byte {
+	addr %= 0x4000 // PPU Memory Map is 0x0000 - 0x3FFF
 
-func (ppu *PPU) incrementY() {
-	if (ppu.v & 0x7000) != 0x7000 {
-		ppu.v += 0x1000 // increment fine Y
-	} else {
-		ppu.v &= ^uint16(0x7000) // fine Y = 0
-		y := (ppu.v & 0x03E0) >> 5
-		if y == 29 {
-			y = 0
-			ppu.v ^= 0x0800 // switch vertical nametable
-		} else if y == 31 {
-			y = 0 // overflow — stays in same nametable
-		} else {
-			y += 1
+	var val byte
+
+	if addr >= 0x0000 && addr <= 0x1FFF {
+		// CHR ROM/RAM
+		val = ppu.CHR[addr] // Или от маппера, если CHR RAM
+	} else if addr >= 0x2000 && addr <= 0x3EFF {
+		// Nametables (VRAM)
+		// Обработка зеркалирования nametables (горизонтальное/вертикальное/1-screen/4-screen)
+		// Это зависит от маппера. По умолчанию для iNES Mapper 0:
+		// 0x2000-0x23FF -> Nametable 0
+		// 0x2400-0x27FF -> Nametable 1
+		// 0x2800-0x2BFF -> Nametable 0 (mirror of 0)
+		// 0x2C00-0x2FFF -> Nametable 1 (mirror of 1)
+		// 0x3000-0x3EFF -> Mirrors of 0x2000-0x2EFF
+		// Пример для вертикального зеркалирования:
+		// addr = 0x2000 + (addr-0x2000)%0x800
+		// Пример для горизонтального зеркалирования:
+		// addr = 0x2000 + (addr-0x2000)%0x400 (для первой пары) или 0x2400 + (addr-0x2400)%0x400 (для второй пары)
+
+		// Предположим, что VRAM (nametables) находится в ppu.VRAM
+		// Вам нужно будет передать информацию о зеркалировании из маппера
+		// Для начала можно просто использовать:
+		val = ppu.VRAM[addr%0x800] // Простейшее 2KB зеркалирование
+	} else if addr >= 0x3F00 && addr <= 0x3FFF {
+		// Palette RAM
+		addr %= 0x20 // 32 байта палитры
+		// Зеркалирование: 0x3F00, 0x3F04, 0x3F08, 0x3F0C зеркалят 0x3F10, 0x3F14, 0x3F18, 0x3F1C
+		if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
+			addr -= 0x10
 		}
-		ppu.v = (ppu.v & ^uint16(0x03E0)) | (y << 5)
+		val = ppu.PaletteTable[addr]
+	}
+	return val // Should not happen
+}
+
+func (ppu *PPU) Write(addr uint16, data byte) {
+	addr %= 0x4000 // PPU Memory Map is 0x0000 - 0x3FFF
+
+	if addr >= 0x0000 && addr <= 0x1FFF {
+		// CHR ROM/RAM (если CHR RAM, то сюда пишем)
+		// if ppu.IsCHRRAM { ppu.CHR[addr] = data }
+	} else if addr >= 0x2000 && addr <= 0x3EFF {
+		// Nametables (VRAM)
+		// Смотри логику зеркалирования из Read
+		ppu.VRAM[addr%0x800] = data
+	} else if addr >= 0x3F00 && addr <= 0x3FFF {
+		// Palette RAM
+		addr %= 0x20
+		if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
+			addr -= 0x10
+		}
+		ppu.PaletteTable[addr] = data
 	}
 }
 
-func (ppu *PPU) transferAddressX() {
-	ppu.v = (ppu.v & 0xFBE0) | (ppu.t & 0x041F)
+// Read registers
+func (ppu *PPU) ReadRegister(addr uint16) byte {
+	switch addr {
+	case 0x2002: // PPUSTATUS
+		status := ppu.PPUStatus
+		ppu.PPUStatus &= (^(byte(1 << 7))) // Clear VBlank flag
+		ppu.w = false                      // Clear write toggle
+		return status
+	case 0x2004: // OAMDATA
+		return ppu.OAM[ppu.OAMADDR]
+	case 0x2007: // PPUDATA
+		data := ppu.bufferedRead
+		ppu.bufferedRead = ppu.Read(ppu.v) // Загружаем следующее значение
+		// Для чтения из палитры - нет буфера, возвращаем сразу
+		if ppu.v >= 0x3F00 {
+			data = ppu.Read(ppu.v)
+		}
+		// Инкремент VRAM адреса
+		if ppu.PPUCTRL&(1<<2) != 0 { // Bit 2 of PPUCTRL (VRAM address increment)
+			ppu.v += 32 // Vertical increment
+		} else {
+			ppu.v += 1 // Horizontal increment
+		}
+		return data
+	default:
+		// Open bus behavior: last value written or last read
+		// For simplicity, return 0 for now or whatever was last on the bus
+		return ppu.bufferedRead // Or some other default
+	}
 }
 
-func (ppu *PPU) transferAddressY() {
-	ppu.v = (ppu.v & 0x841F) | (ppu.t & 0x7BE0)
+// Write registers
+func (ppu *PPU) WriteRegister(addr uint16, data byte) {
+	switch addr {
+	case 0x2000: // PPUCTRL
+		ppu.PPUCTRL = data
+		ppu.t = (ppu.t & 0xF3FF) | ((uint16(data) & 0x03) << 10) // Update nametable select in T
+	case 0x2001: // PPUMASK
+		ppu.PPUMASK = data
+	case 0x2003: // OAMADDR
+		ppu.OAMADDR = data
+	case 0x2004: // OAMDATA
+		ppu.OAM[ppu.OAMADDR] = data
+		ppu.OAMADDR++ // OAMADDR auto-increments
+	case 0x2005: // PPUSCROLL
+		if !ppu.w { // First write: X scroll
+			ppu.x = data & 0x07                            // Fine X scroll
+			ppu.t = (ppu.t & 0xFFE0) | (uint16(data) >> 3) // Coarse X scroll
+		} else { // Second write: Y scroll
+			ppu.t = (ppu.t & 0x8FFF) | ((uint16(data) & 0x07) << 12) // Fine Y scroll
+			ppu.t = (ppu.t & 0xFC1F) | ((uint16(data) & 0xF8) << 2)  // Coarse Y scroll
+		}
+		ppu.w = !ppu.w
+	case 0x2006: // PPUADDR
+		if !ppu.w { // First write: High byte
+			ppu.t = (ppu.t & 0x80FF) | ((uint16(data) & 0x3F) << 8)
+		} else { // Second write: Low byte
+			ppu.t = (ppu.t & 0xFF00) | uint16(data)
+			ppu.v = ppu.t // Transfer temporary address to current VRAM address
+		}
+		ppu.w = !ppu.w
+	case 0x2007: // PPUDATA
+		ppu.Write(ppu.v, data)
+		// Инкремент VRAM адреса
+		if ppu.PPUCTRL&(1<<2) != 0 { // Bit 2 of PPUCTRL (VRAM address increment)
+			ppu.v += 32
+		} else {
+			ppu.v += 1
+		}
+	case 0x4014: // OAMDMA (handled by CPU, not PPU itself)
+		ppu.OAMDMA = data // CPU будет читать это и выполнять DMA
+	}
+}
+
+func (ppu *PPU) fetchTileData() {
+	// Шаг 1: Получение байта таблицы имен (Nametable Byte)
+	// Адрес Nametable: 0x2000 | (v & 0x0FFF)
+	nameTableAddr := 0x2000 | (ppu.v & 0x0FFF)
+	ppu.nameTableByte = ppu.Read(nameTableAddr)
+
+	// Шаг 2: Получение байта таблицы атрибутов (Attribute Table Byte)
+	// Адрес Attribute: 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
+	// Или, проще: 0x23C0 | (NT_y << 6) | (NT_x >> 2)
+	attributeTableAddr := 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07)
+	attrByte := ppu.Read(attributeTableAddr)
+
+	// Определяем палитру для текущего тайла (2x2 метатайл)
+	// Биты 1 и 0 Nametable VRAM адреса определяют позицию внутри метатайла
+	if (ppu.v & 0x40) != 0 { // Coarse Y bit 1
+		attrByte >>= 4
+	}
+	if (ppu.v & 0x02) != 0 { // Coarse X bit 1
+		attrByte >>= 2
+	}
+	ppu.attributeTableByte = (attrByte & 0x03) // 2 бита палитры
+
+	// Шаг 3: Получение младшего байта паттерна (Pattern Table Low Byte)
+	// Базовый адрес таблицы паттернов: PPUCTRL (бит 4)
+	// Адрес паттерна: (PPUCTRL & 0x10) << 8 | (nameTableByte << 4) | fineY
+	patternTableAddrLow := (uint16(ppu.PPUCTRL&0x10) << 8) | (uint16(ppu.nameTableByte) << 4) | (ppu.v>>12)&0x07
+	ppu.lowTileByte = ppu.Read(patternTableAddrLow)
+
+	// Шаг 4: Получение старшего байта паттерна (Pattern Table High Byte)
+	patternTableAddrHigh := patternTableAddrLow + 8
+	ppu.highTileByte = ppu.Read(patternTableAddrHigh)
+}
+
+func (ppu *PPU) incrementScrollX() {
+	// Если рендеринг выключен, не инкрементируем
+	if ppu.PPUMASK&0x08 == 0 && ppu.PPUMASK&0x10 == 0 {
+		return
+	}
+
+	// Инкремент coarse X
+	if (ppu.v & 0x001F) == 31 { // Если coarse X == 31 (достигли конца nametable)
+		ppu.v &= ^uint16(0x001F) // Сбросить coarse X
+		ppu.v ^= uint16(0x0400)  // Переключить horizontal nametable (bit 10)
+	} else {
+		ppu.v++ // Инкремент coarse X
+	}
+}
+
+func (ppu *PPU) incrementScrollY() {
+	// Если рендеринг выключен, не инкрементируем
+	if ppu.PPUMASK&0x08 == 0 && ppu.PPUMASK&0x10 == 0 {
+		return
+	}
+
+	// Инкремент fine Y
+	if (ppu.v & 0x7000) != 0x7000 { // Если fine Y < 7
+		ppu.v += 0x1000 // Инкремент fine Y
+	} else {
+		ppu.v &= ^uint16(0x7000) // Сбросить fine Y
+		// Инкремент coarse Y
+		coarseY := (ppu.v & 0x03E0) >> 5
+		if coarseY == 29 { // Если coarse Y == 29 (достигли конца видимой области nametable)
+			coarseY = 0             // Сбросить coarse Y
+			ppu.v ^= uint16(0x0800) // Переключить vertical nametable (bit 11)
+		} else if coarseY == 31 { // Если coarse Y == 31 (обычно не используется)
+			coarseY = 0 // Сбросить coarse Y, но не переключать nametable (для специальных эффектов)
+		} else {
+			coarseY++ // Инкремент coarse Y
+		}
+		ppu.v = (ppu.v & ^uint16(0x03E0)) | (coarseY << 5)
+	}
+}
+
+func (ppu *PPU) renderPixel() {
+	if ppu.scanline >= 0 && ppu.scanline <= 239 && ppu.cycle >= 1 && ppu.cycle <= 256 {
+
+		// Определяем, включен ли рендеринг фона и спрайтов
+		renderBackground := (ppu.PPUMASK & 0x08) != 0 // Enable background
+		// renderSprites := (ppu.PPUMASK & 0x10) != 0    // Enable sprites
+
+		// Проверяем маску левых 8 пикселей
+		// Если бит 1 (background leftmost 8px show) или бит 2 (sprite leftmost 8px show) выключен,
+		// и текущий пиксель находится в левых 8 пикселях, то фон/спрайты не рисуются.
+		if ppu.cycle <= 8 { // Если мы в левых 8 пикселях
+			if (ppu.PPUMASK & 0x02) == 0 { // Bit 1 (Show background in leftmost 8 pixels)
+				renderBackground = false
+			}
+			if (ppu.PPUMASK & 0x04) == 0 { // Bit 2 (Show sprites in leftmost 8 pixels)
+				// renderSprites = false
+			}
+		}
+
+		bgPixel := byte(0)
+		bgPalette := byte(0)
+
+		if renderBackground {
+			// Извлечение пикселя фона
+			// ppu.x (fine X scroll, 0-7) определяет, какой из 8 битов текущего тайла использовать.
+			// Так как шифтеры сдвигаются влево на каждом пикселе, нам нужен 15-й бит (самый левый)
+			// минус смещение ppu.x.
+			// Бит для паттерна:
+			patternBit := byte(7 - ppu.x) // 7 is the leftmost bit of the 8-bit tile in the MSB of the 16-bit shifters
+
+			bit0 := byte((ppu.bgPatternLow >> patternBit) & 0x01)
+			bit1 := byte(((ppu.bgPatternHigh >> patternBit) & 0x01) << 1)
+			bgPixel = bit0 | bit1 // 2-bit pixel value (0-3)
+
+			// Бит для палитры (из атрибутов)
+			attrBit0 := byte((ppu.bgAttributeLow >> patternBit) & 0x01)
+			attrBit1 := byte(((ppu.bgAttributeHigh >> patternBit) & 0x01) << 1)
+			bgPalette = attrBit0 | attrBit1 // 2-bit palette index (0-3)
+		}
+
+		// Здесь должна быть логика рендеринга спрайтов (позже)
+		spritePixel := byte(0)
+		spritePalette := byte(0)
+		// spritePriority := false // false = sprite behind background, true = sprite in front of background
+		// sprite0Hit := false
+
+		// Определение финального пикселя
+		finalColorIndex := byte(0) // Default to universal background color
+
+		if bgPixel == 0 && spritePixel == 0 {
+			finalColorIndex = ppu.Read(0x3F00) // Universal background color
+		} else if bgPixel != 0 && spritePixel == 0 {
+			finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel))
+		} else if bgPixel == 0 && spritePixel != 0 {
+			finalColorIndex = ppu.Read(0x3F00 + uint16((spritePalette<<2)+spritePixel))
+		} else { // both bgPixel != 0 && spritePixel != 0
+			// Collision detection for Sprite 0 Hit
+			// if sprite0Hit { ppu.PPUStatus |= (1 << 6) }
+
+			// Priority logic: which one is rendered?
+			// if spritePriority {
+			//     finalColorIndex = ppu.Read(0x3F00 + (spritePalette << 2) + spritePixel)
+			// } else {
+			finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel)) // For now, background has priority
+			// }
+		}
+
+		// Применение emphasize bits (из PPUMASK)
+		// Эти биты сдвигают весь выходной цвет в определенном направлении
+		// (оттенок синего, зеленого, красного).
+		if (ppu.PPUMASK & 0xE0) != 0 { // If any emphasize bit is set
+			// TODO: Implement color emphasis
+			// Это сложнее, обычно делается путем модификации RGB-цвета из палитры,
+			// а не простого индекса.
+			// Например: if (ppu.PPUMASK & 0x20) != 0 { /* Emphasize blue */ }
+		}
+
+		// Сохраняем пиксель в фреймбуфере
+		ppu.framebuffer[ppu.scanline][ppu.cycle-1] = finalColorIndex
+	}
 }

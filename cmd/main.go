@@ -14,10 +14,16 @@ type Game struct {
 	ebImage *ebiten.Image
 }
 
+func getTestPath(part string) string {
+	return "./assets/tests/" + part + ".nes"
+}
+
 func NewGame() *Game {
 	// path := "./assets/roms/Tetris.nes"
-	path := "./assets/roms/Super Mario Bros (E).nes"
+	// path := "./assets/roms/Super Mario Bros (E).nes"
 	// path := "./assets/roms/test_cpu_exec_space_apu.nes"
+
+	path := getTestPath("palette")
 
 	cartridge, err := rom.LoadRom(path)
 	if err != nil {
@@ -25,6 +31,7 @@ func NewGame() *Game {
 	}
 
 	ppu := ppu.New(cartridge.CHR)
+
 	bus := bus.New(ppu, cartridge)
 	cpuInstance := cpu.New()
 
@@ -32,13 +39,6 @@ func NewGame() *Game {
 	bus.AttachCPU(cpuInstance)
 
 	cpuInstance.Reset()
-	bus.PPU.Reset()
-
-	bus.CPURead(0x2002)
-
-	for i := 0; i < 341; i++ {
-		bus.ClockPPU()
-	}
 
 	ebImage := ebiten.NewImage(256, 240)
 
@@ -52,9 +52,7 @@ func NewGame() *Game {
 func (g *Game) Update() error {
 	// Один кадр ≈ 29780 PPU-тактов
 	for i := 0; i < 29780; i++ {
-		// fmt.Println(g.cpu.Trace())
-		// g.cpu.Step()
-		// g.cpu.Clock()
+		g.cpu.Clock()
 	}
 
 	return nil

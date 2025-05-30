@@ -101,17 +101,6 @@ func (c *CPU) Pull16() uint16 {
 	return (hi << 8) | lo
 }
 
-func (c *CPU) Step() {
-	if c.Bus.ShouldTriggerNMI() {
-		c.TriggerNMI()
-		c.Bus.AcknowledgeNMI()
-	}
-
-	c.Bus.ClockPPU()
-
-	c.Execute()
-}
-
 func (cpu *CPU) Clock() {
 	// PPU тикает 3 раза за каждый такт CPU
 	cpu.Bus.StepPPU()
@@ -137,17 +126,6 @@ func (cpu *CPU) Clock() {
 	}
 	cpu.CyclesLeft--
 	cpu.Cycles++
-}
-
-func (c *CPU) ClockOnce() {
-
-	// for i := 0; i < 3; i++ {
-	// c.Bus.ClockPPU()
-	// c.Cycles++
-	// }
-
-	c.Clock()
-
 }
 
 func (c *CPU) Execute() {
@@ -192,7 +170,6 @@ func (c *CPU) Read16(addr uint16) uint16 {
 }
 
 func (c *CPU) TriggerNMI() {
-	fmt.Println("[CPU] >>> TriggerNMI выполнен!")
 	c.Push16(c.PC)
 	c.Push(c.P | 0x20)
 	c.setInterruptDisable(true)
