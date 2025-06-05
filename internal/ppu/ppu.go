@@ -142,7 +142,6 @@ func (ppu *PPU) Step() {
 
 	// 4. Логика рендеринга (Visible Scanlines 0-239 and Pre-render Scanline 261)
 	if (ppu.scanline >= 0 && ppu.scanline <= 239) || ppu.scanline == 261 {
-
 		// --- Фаза предвыборки данных (Background Fetch) ---
 		// PPU Fetch sequence: NT byte -> AT byte -> Low Tile byte -> High Tile byte (every 8 cycles)
 		// These happen on cycles: 1, 9, 17, ... 257, 321, 329
@@ -457,39 +456,6 @@ func (ppu *PPU) WriteRegister(addr uint16, data byte) {
 	}
 }
 
-func (ppu *PPU) fetchTileData() {
-	// Шаг 1: Получение байта таблицы имен (Nametable Byte)
-	// Адрес Nametable: 0x2000 | (v & 0x0FFF)
-	nameTableAddr := 0x2000 | (ppu.v & 0x0FFF)
-	ppu.nameTableByte = ppu.Read(nameTableAddr)
-
-	// Шаг 2: Получение байта таблицы атрибутов (Attribute Table Byte)
-	// Адрес Attribute: 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-	// Или, проще: 0x23C0 | (NT_y << 6) | (NT_x >> 2)
-	attributeTableAddr := 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07)
-	attrByte := ppu.Read(attributeTableAddr)
-
-	// Определяем палитру для текущего тайла (2x2 метатайл)
-	// Биты 1 и 0 Nametable VRAM адреса определяют позицию внутри метатайла
-	if (ppu.v & 0x40) != 0 { // Coarse Y bit 1
-		attrByte >>= 4
-	}
-	if (ppu.v & 0x02) != 0 { // Coarse X bit 1
-		attrByte >>= 2
-	}
-	ppu.attributeTableByte = (attrByte & 0x03) // 2 бита палитры
-
-	// Шаг 3: Получение младшего байта паттерна (Pattern Table Low Byte)
-	// Базовый адрес таблицы паттернов: PPUCTRL (бит 4)
-	// Адрес паттерна: (PPUCTRL & 0x10) << 8 | (nameTableByte << 4) | fineY
-	patternTableAddrLow := (uint16(ppu.PPUCTRL&0x10) << 8) | (uint16(ppu.nameTableByte) << 4) | (ppu.v>>12)&0x07
-	ppu.lowTileByte = ppu.Read(patternTableAddrLow)
-
-	// Шаг 4: Получение старшего байта паттерна (Pattern Table High Byte)
-	patternTableAddrHigh := patternTableAddrLow + 8
-	ppu.highTileByte = ppu.Read(patternTableAddrHigh)
-}
-
 func (ppu *PPU) incrementScrollX() {
 	// Если рендеринг выключен, не инкрементируем
 	if ppu.PPUMASK&0x08 == 0 && ppu.PPUMASK&0x10 == 0 {
@@ -532,42 +498,29 @@ func (ppu *PPU) incrementScrollY() {
 
 func (ppu *PPU) renderPixel() {
 	if ppu.scanline >= 0 && ppu.scanline <= 239 && ppu.cycle >= 1 && ppu.cycle <= 256 {
-
-		// Определяем, включен ли рендеринг фона и спрайтов
-		renderBackground := (ppu.PPUMASK & 0x08) != 0 // Enable background
-		// renderSprites := (ppu.PPUMASK & 0x10) != 0    // Enable sprites
-
-		// Проверяем маску левых 8 пикселей
-		// Если бит 1 (background leftmost 8px show) или бит 2 (sprite leftmost 8px show) выключен,
-		// и текущий пиксель находится в левых 8 пикселях, то фон/спрайты не рисуются.
-		if ppu.cycle <= 8 { // Если мы в левых 8 пикселях
-			if (ppu.PPUMASK & 0x02) == 0 { // Bit 1 (Show background in leftmost 8 pixels)
-				renderBackground = false
-			}
-			if (ppu.PPUMASK & 0x04) == 0 { // Bit 2 (Show sprites in leftmost 8 pixels)
-				// renderSprites = false
-			}
-		}
+		renderBackground := (ppu.PPUMASK & 0x08) != 0
 
 		bgPixel := byte(0)
 		bgPalette := byte(0)
 
 		if renderBackground {
-			// Извлечение пикселя фона
-			// ppu.x (fine X scroll, 0-7) определяет, какой из 8 битов текущего тайла использовать.
-			// Так как шифтеры сдвигаются влево на каждом пикселе, нам нужен 15-й бит (самый левый)
-			// минус смещение ppu.x.
-			// Бит для паттерна:
-			patternBit := byte(7 - ppu.x) // 7 is the leftmost bit of the 8-bit tile in the MSB of the 16-bit shifters
+			// Если мы находимся в первых 8 пикселях и бит 1 (background leftmost 8px show) выключен,
+			// то backgroundPixel будет 0.
+			if ppu.cycle <= 8 && (ppu.PPUMASK&0x02) == 0 {
+				bgPixel = 0
+			} else {
+				// Извлечение пикселя фона
+				// После каждого сдвига, нужный бит всегда находится в самой старшей позиции
+				// 16-битного шифтера (бит 15).
+				bit0 := byte((ppu.bgPatternLow >> 15) & 0x01)
+				bit1 := byte(((ppu.bgPatternHigh >> 15) & 0x01) << 1)
+				bgPixel = bit0 | bit1 // 2-bit pixel value (0-3)
 
-			bit0 := byte((ppu.bgPatternLow >> patternBit) & 0x01)
-			bit1 := byte(((ppu.bgPatternHigh >> patternBit) & 0x01) << 1)
-			bgPixel = bit0 | bit1 // 2-bit pixel value (0-3)
-
-			// Бит для палитры (из атрибутов)
-			attrBit0 := byte((ppu.bgAttributeLow >> patternBit) & 0x01)
-			attrBit1 := byte(((ppu.bgAttributeHigh >> patternBit) & 0x01) << 1)
-			bgPalette = attrBit0 | attrBit1 // 2-bit palette index (0-3)
+				// Бит для палитры (из атрибутов)
+				attrBit0 := byte((ppu.bgAttributeLow >> 15) & 0x01)
+				attrBit1 := byte(((ppu.bgAttributeHigh >> 15) & 0x01) << 1)
+				bgPalette = attrBit0 | attrBit1 // 2-bit palette index (0-3)
+			}
 		}
 
 		// Здесь должна быть логика рендеринга спрайтов (позже)
@@ -576,38 +529,18 @@ func (ppu *PPU) renderPixel() {
 		// spritePriority := false // false = sprite behind background, true = sprite in front of background
 		// sprite0Hit := false
 
-		// Определение финального пикселя
-		finalColorIndex := byte(0) // Default to universal background color
-
+		finalColorIndex := byte(0)
 		if bgPixel == 0 && spritePixel == 0 {
 			finalColorIndex = ppu.Read(0x3F00) // Universal background color
 		} else if bgPixel != 0 && spritePixel == 0 {
 			finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel))
 		} else if bgPixel == 0 && spritePixel != 0 {
 			finalColorIndex = ppu.Read(0x3F00 + uint16((spritePalette<<2)+spritePixel))
-		} else { // both bgPixel != 0 && spritePixel != 0
-			// Collision detection for Sprite 0 Hit
-			// if sprite0Hit { ppu.PPUStatus |= (1 << 6) }
-
-			// Priority logic: which one is rendered?
-			// if spritePriority {
-			//     finalColorIndex = ppu.Read(0x3F00 + (spritePalette << 2) + spritePixel)
-			// } else {
-			finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel)) // For now, background has priority
-			// }
+		} else {
+			// Приоритет фона
+			finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel))
 		}
 
-		// Применение emphasize bits (из PPUMASK)
-		// Эти биты сдвигают весь выходной цвет в определенном направлении
-		// (оттенок синего, зеленого, красного).
-		if (ppu.PPUMASK & 0xE0) != 0 { // If any emphasize bit is set
-			// TODO: Implement color emphasis
-			// Это сложнее, обычно делается путем модификации RGB-цвета из палитры,
-			// а не простого индекса.
-			// Например: if (ppu.PPUMASK & 0x20) != 0 { /* Emphasize blue */ }
-		}
-
-		// Сохраняем пиксель в фреймбуфере
 		ppu.framebuffer[ppu.scanline][ppu.cycle-1] = finalColorIndex
 	}
 }
