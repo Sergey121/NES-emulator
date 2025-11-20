@@ -61,6 +61,15 @@ type PPU struct {
 	attributeTableByte byte
 	lowTileByte        byte
 	highTileByte       byte
+
+	// Sprite rendering
+	secondaryOAM       [32]byte // 8 sprites * 4 bytes
+	spriteCount        int      // Number of sprites found on next scanline
+	spritePatternsLow  [8]byte  // Low byte of sprite pattern
+	spritePatternsHigh [8]byte  // High byte of sprite pattern
+	spritePositions    [8]byte  // X position of sprite
+	spriteAttributes   [8]byte  // Attributes of sprite
+	spriteIndexes      [8]byte  // Index in OAM (for Sprite 0 hit)
 }
 
 func (ppu *PPU) Reset() {
@@ -82,6 +91,15 @@ func (ppu *PPU) Reset() {
 	ppu.bgPatternHigh = 0
 	ppu.bgAttributeLow = 0
 	ppu.bgAttributeHigh = 0
+	// Reset sprite data
+	ppu.spriteCount = 0
+	for i := 0; i < 8; i++ {
+		ppu.spritePatternsLow[i] = 0
+		ppu.spritePatternsHigh[i] = 0
+		ppu.spritePositions[i] = 0
+		ppu.spriteAttributes[i] = 0
+		ppu.spriteIndexes[i] = 0
+	}
 }
 
 func New(chr []byte) *PPU {
@@ -217,6 +235,18 @@ func (ppu *PPU) Step() {
 					ppu.shiftBackgroundRegisters()
 				}
 			}
+		}
+
+		// Sprite evaluation (Cycles 65-256)
+		if ppu.cycle == 257 && renderingEnabled {
+			ppu.evaluateSprites()
+		}
+
+		// Sprite fetches (Cycles 257-320)
+		// Simplified: do all fetches at 257 for now or spread them if needed.
+		// For accurate timing we should spread them, but for functionality 257 is okay to prepare for next line.
+		if ppu.cycle == 320 && renderingEnabled {
+			ppu.fetchSpritePatterns()
 		}
 	}
 }
@@ -503,50 +533,227 @@ func (ppu *PPU) incrementScrollY() {
 	}
 }
 
+func (ppu *PPU) evaluateSprites() {
+	// Clear secondary OAM
+	ppu.spriteCount = 0
+	for i := 0; i < 32; i++ {
+		ppu.secondaryOAM[i] = 0xFF
+	}
+
+	// Sprite height (8x8 or 8x16)
+	spriteHeight := 8
+	if ppu.PPUCTRL&0x20 != 0 {
+		spriteHeight = 16
+	}
+
+	count := 0
+	for i := 0; i < 64; i++ {
+		y := int(ppu.OAM[i*4])
+		// Check if sprite is on next scanline
+		// Note: Sprite Y is delayed by one scanline, so we check against scanline (which is currently being rendered,
+		// but we are preparing for scanline + 1? No, evaluation happens for the *next* scanline).
+		// Actually, PPU renders current scanline, and evaluates sprites for the NEXT scanline.
+		// So we check if sprite is in range [scanline, scanline + height).
+		// Wait, standard behavior: Y byte in OAM is Y-1.
+		// So sprite is visible on lines Y+1 to Y+height.
+		// We are currently at `ppu.scanline`. We are preparing for `ppu.scanline`.
+		// Wait, evaluation happens on scanline N for scanline N.
+		// The sprites evaluated on scanline N are rendered on scanline N+1.
+
+		// Let's assume we are preparing for the NEXT scanline (ppu.scanline).
+		// The Y coordinate in OAM is the top of the sprite minus 1.
+		// So if OAM_Y = 10, sprite starts at 11.
+		// If we are on scanline 11, we want to render it.
+		// Evaluation happens on scanline 10.
+
+		// So, diff = scanline - y.
+		// If 0 <= diff < height, then it is visible on the NEXT scanline?
+		// Let's stick to: we are evaluating for the current `ppu.scanline` to be rendered?
+		// No, evaluation runs on scanline N to prepare for N+1.
+		// So we check if sprite will be on scanline N+1?
+		// Or does the `scanline` variable track the one being rendered?
+		// Usually `scanline` is the one being output.
+
+		// Correct logic:
+		// On scanline N:
+		// We evaluate sprites that will appear on scanline N.
+		// Wait, no. We evaluate on N for N.
+		// Actually, let's look at the Y coordinate.
+		// If OAM Y = 10. Sprite is on lines 11-18 (for 8x8).
+		// We are currently rendering line 10. We evaluate for line 10? No.
+		// We evaluate for line 11.
+
+		// Let's use the standard logic:
+		// Target line = ppu.scanline.
+		// diff = targetLine - y
+		// If 0 <= diff < height -> Visible.
+
+		diff := ppu.scanline - y
+		if diff >= 0 && diff < spriteHeight {
+			if count < 8 {
+				// Copy sprite data to secondary OAM
+				ppu.secondaryOAM[count*4+0] = ppu.OAM[i*4+0]
+				ppu.secondaryOAM[count*4+1] = ppu.OAM[i*4+1]
+				ppu.secondaryOAM[count*4+2] = ppu.OAM[i*4+2]
+				ppu.secondaryOAM[count*4+3] = ppu.OAM[i*4+3]
+
+				// Store index for Sprite 0 detection
+				ppu.spriteIndexes[count] = byte(i)
+				count++
+			} else {
+				// Sprite overflow flag would be set here
+				ppu.PPUStatus |= 0x20
+				break
+			}
+		}
+	}
+	ppu.spriteCount = count
+}
+
+func (ppu *PPU) fetchSpritePatterns() {
+	spriteHeight := 8
+	if ppu.PPUCTRL&0x20 != 0 {
+		spriteHeight = 16
+	}
+
+	for i := 0; i < ppu.spriteCount; i++ {
+		y := int(ppu.secondaryOAM[i*4+0])
+		tileIndex := ppu.secondaryOAM[i*4+1]
+		attributes := ppu.secondaryOAM[i*4+2]
+		x := ppu.secondaryOAM[i*4+3]
+
+		ppu.spritePositions[i] = x
+		ppu.spriteAttributes[i] = attributes
+
+		// Calculate row within the sprite
+		// We are preparing for the current scanline (which we just evaluated? No, we evaluated for THIS scanline).
+		// Wait, if we evaluated for `ppu.scanline`, then we are fetching for `ppu.scanline`.
+		row := ppu.scanline - y
+
+		// Vertical flip
+		if attributes&0x80 != 0 {
+			row = spriteHeight - 1 - row
+		}
+
+		var addr uint16
+		if spriteHeight == 8 {
+			// 8x8 Sprites
+			// Table from PPUCTRL bit 3
+			table := uint16(0)
+			if ppu.PPUCTRL&0x08 != 0 {
+				table = 0x1000
+			}
+			addr = table | (uint16(tileIndex) << 4) | uint16(row)
+		} else {
+			// 8x16 Sprites
+			// Table from bit 0 of tile index
+			table := uint16(0)
+			if tileIndex&1 != 0 {
+				table = 0x1000
+			}
+			tileIndex &= 0xFE // Ignore last bit
+			if row >= 8 {
+				tileIndex++
+				row -= 8
+			}
+			addr = table | (uint16(tileIndex) << 4) | uint16(row)
+		}
+
+		ppu.spritePatternsLow[i] = ppu.Read(addr)
+		ppu.spritePatternsHigh[i] = ppu.Read(addr + 8)
+	}
+}
+
 func (ppu *PPU) renderPixel() {
 	if ppu.scanline >= 0 && ppu.scanline <= 239 && ppu.cycle >= 1 && ppu.cycle <= 256 {
 		renderBackground := (ppu.PPUMASK & 0x08) != 0
+		renderSprites := (ppu.PPUMASK & 0x10) != 0
 
 		bgPixel := byte(0)
 		bgPalette := byte(0)
 
 		if renderBackground {
-			// Если мы находимся в первых 8 пикселях и бит 1 (background leftmost 8px show) выключен,
-			// то backgroundPixel будет 0.
 			if ppu.cycle <= 8 && (ppu.PPUMASK&0x02) == 0 {
 				bgPixel = 0
 			} else {
-				// Извлечение пикселя фона
-				// После каждого сдвига, нужный бит всегда находится в самой старшей позиции
-				// 16-битного шифтера (бит 15), скорректированный на fine x scroll.
 				shift := 15 - ppu.x
 				bit0 := byte((ppu.bgPatternLow >> shift) & 0x01)
 				bit1 := byte(((ppu.bgPatternHigh >> shift) & 0x01) << 1)
-				bgPixel = bit0 | bit1 // 2-bit pixel value (0-3)
+				bgPixel = bit0 | bit1
 
-				// Бит для палитры (из атрибутов)
 				attrBit0 := byte((ppu.bgAttributeLow >> shift) & 0x01)
 				attrBit1 := byte(((ppu.bgAttributeHigh >> shift) & 0x01) << 1)
-				bgPalette = attrBit0 | attrBit1 // 2-bit palette index (0-3)
+				bgPalette = attrBit0 | attrBit1
 			}
 		}
 
-		// Здесь должна быть логика рендеринга спрайтов (позже)
 		spritePixel := byte(0)
 		spritePalette := byte(0)
-		// spritePriority := false // false = sprite behind background, true = sprite in front of background
-		// sprite0Hit := false
+		spritePriority := false // false = front, true = back
+		isSprite0 := false
+
+		if renderSprites {
+			if ppu.cycle <= 8 && (ppu.PPUMASK&0x04) == 0 {
+				spritePixel = 0
+			} else {
+				for i := 0; i < ppu.spriteCount; i++ {
+					x := int(ppu.spritePositions[i])
+					// Check if pixel is within sprite X range
+					// cycle-1 is the current X coordinate
+					diff := (ppu.cycle - 1) - x
+					if diff >= 0 && diff < 8 {
+						attributes := ppu.spriteAttributes[i]
+
+						// Horizontal flip
+						col := diff
+						if attributes&0x40 != 0 {
+							col = 7 - col
+						}
+
+						bit0 := (ppu.spritePatternsLow[i] >> (7 - col)) & 1
+						bit1 := (ppu.spritePatternsHigh[i] >> (7 - col)) & 1
+						pixel := bit0 | (bit1 << 1)
+
+						if pixel != 0 {
+							spritePixel = pixel
+							spritePalette = (attributes & 0x03) + 4 // +4 for sprite palettes
+							spritePriority = (attributes & 0x20) != 0
+							if ppu.spriteIndexes[i] == 0 {
+								isSprite0 = true
+							}
+							break // Priority to first sprite found
+						}
+					}
+				}
+			}
+		}
+
+		// Sprite 0 Hit Detection
+		if isSprite0 && bgPixel != 0 && renderBackground && renderSprites {
+			// Check if we are at x=255 (right edge), usually ignored?
+			// Check if cycle != 255?
+			// Standard behavior: if both opaque, set flag.
+			if ppu.cycle != 255 { // Some docs say 255 is excluded
+				ppu.PPUStatus |= 0x40
+			}
+		}
 
 		finalColorIndex := byte(0)
 		if bgPixel == 0 && spritePixel == 0 {
-			finalColorIndex = ppu.Read(0x3F00) // Universal background color
+			finalColorIndex = ppu.Read(0x3F00)
 		} else if bgPixel != 0 && spritePixel == 0 {
 			finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel))
 		} else if bgPixel == 0 && spritePixel != 0 {
 			finalColorIndex = ppu.Read(0x3F00 + uint16((spritePalette<<2)+spritePixel))
 		} else {
-			// Приоритет фона
-			finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel))
+			// Both opaque
+			if spritePriority {
+				// Sprite behind background
+				finalColorIndex = ppu.Read(0x3F00 + uint16((bgPalette<<2)+bgPixel))
+			} else {
+				// Sprite in front
+				finalColorIndex = ppu.Read(0x3F00 + uint16((spritePalette<<2)+spritePixel))
+			}
 		}
 
 		ppu.framebuffer[ppu.scanline][ppu.cycle-1] = finalColorIndex

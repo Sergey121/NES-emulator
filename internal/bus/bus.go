@@ -67,7 +67,24 @@ func (b *Bus) CPUWrite(addr uint16, value byte) {
 
 	case addr == 0x4014:
 		// OAM DMA
-		b.PPU.OAMDMA = value
+		// Writing $XX will upload 256 bytes of data from CPU page $XX00-$XXFF to the internal PPU OAM.
+		startAddr := uint16(value) << 8
+		for i := uint16(0); i < 256; i++ {
+			data := b.CPURead(startAddr + i)
+			b.PPU.OAMDATA = data // This updates OAMDATA register but usually DMA writes directly to OAM
+			// Direct write to OAM is better/simpler here as OAMADDR might auto-increment on OAMDATA write
+			// but DMA usually writes to OAMADDR, OAMADDR+1, etc.
+			// Let's write directly to OAM array to be safe and simple, respecting OAMADDR wrapping if needed.
+			// Standard DMA copies to OAM[OAMADDR] and increments OAMADDR?
+			// "The CPU is suspended... 256 bytes are read... and written to OAMDATA"
+			// So it effectively writes to OAMDATA 256 times.
+			// Let's use WriteRegister(0x2004, data) to reuse logic?
+			// Or just direct copy if we assume OAMADDR is 0 (usually is).
+			// Let's use WriteRegister to be safe with auto-increment logic.
+			b.PPU.WriteRegister(0x2004, data)
+		}
+		// CPU suspension is not implemented yet (requires cycle counting accuracy),
+		// but immediate copy works for functionality.
 
 	case addr == 0x4016 || addr == 0x4017:
 		// Controller
