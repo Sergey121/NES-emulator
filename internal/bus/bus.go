@@ -46,8 +46,8 @@ func (b *Bus) CPURead(addr uint16) byte {
 		// Cartridge ROM ($8000-$FFFF)
 		return b.Cartridge.ReadPRG(addr)
 	default:
-		// Unmapped memory
-		return 0
+		// Unmapped memory returns open bus (usually high byte of address)
+		return byte(addr >> 8)
 	}
 }
 
