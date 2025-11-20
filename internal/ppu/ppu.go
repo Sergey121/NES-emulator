@@ -147,7 +147,7 @@ func (ppu *PPU) Step() {
 		// These happen on cycles: 1, 9, 17, ... 257, 321, 329
 		// And also on cycles 257, 337, 339 (for reloading shifters for next row/first two tiles)
 
-		if (ppu.cycle >= 1 && ppu.cycle <= 256) || (ppu.cycle >= 321 && ppu.cycle <= 336) { // Cycles where background fetch/render occurs
+		if (ppu.cycle >= 1 && ppu.cycle <= 256) || (ppu.cycle >= 321 && ppu.cycle <= 340) { // Cycles where background fetch/render occurs
 			// Каждый 8-й цикл: Загрузка следующего тайла (NameTable, Attribute, Pattern Low, Pattern High)
 			// и загрузка шифтеров
 			switch ppu.cycle % 8 {
@@ -203,13 +203,20 @@ func (ppu *PPU) Step() {
 
 		// --- Сдвиг шифтеров (на каждом пикселе) ---
 		// И рендеринг пикселя
-		if ppu.cycle >= 1 && ppu.cycle <= 256 {
-			// Background shift
-			if renderingEnabled {
-				ppu.shiftBackgroundRegisters()
+		// Fetch loop: 1-256 (visible) and 321-340 (pre-fetch)
+		if (ppu.cycle >= 1 && ppu.cycle <= 256) || (ppu.cycle >= 321 && ppu.cycle <= 340) {
+			// Render pixel (only visible)
+			if ppu.cycle <= 256 {
+				ppu.renderPixel()
 			}
-			// Render pixel
-			ppu.renderPixel()
+
+			// Background shift (visible 1-256 and pre-fetch 321-336)
+			// STOP shifting at 336 to keep the loaded tiles in place for next line
+			if renderingEnabled {
+				if (ppu.cycle >= 1 && ppu.cycle <= 256) || (ppu.cycle >= 321 && ppu.cycle <= 336) {
+					ppu.shiftBackgroundRegisters()
+				}
+			}
 		}
 	}
 }
@@ -511,14 +518,15 @@ func (ppu *PPU) renderPixel() {
 			} else {
 				// Извлечение пикселя фона
 				// После каждого сдвига, нужный бит всегда находится в самой старшей позиции
-				// 16-битного шифтера (бит 15).
-				bit0 := byte((ppu.bgPatternLow >> 15) & 0x01)
-				bit1 := byte(((ppu.bgPatternHigh >> 15) & 0x01) << 1)
+				// 16-битного шифтера (бит 15), скорректированный на fine x scroll.
+				shift := 15 - ppu.x
+				bit0 := byte((ppu.bgPatternLow >> shift) & 0x01)
+				bit1 := byte(((ppu.bgPatternHigh >> shift) & 0x01) << 1)
 				bgPixel = bit0 | bit1 // 2-bit pixel value (0-3)
 
 				// Бит для палитры (из атрибутов)
-				attrBit0 := byte((ppu.bgAttributeLow >> 15) & 0x01)
-				attrBit1 := byte(((ppu.bgAttributeHigh >> 15) & 0x01) << 1)
+				attrBit0 := byte((ppu.bgAttributeLow >> shift) & 0x01)
+				attrBit1 := byte(((ppu.bgAttributeHigh >> shift) & 0x01) << 1)
 				bgPalette = attrBit0 | attrBit1 // 2-bit palette index (0-3)
 			}
 		}

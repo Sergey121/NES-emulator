@@ -20,10 +20,10 @@ func getTestPath(part string) string {
 
 func NewGame() *Game {
 	// path := "./assets/roms/Tetris.nes"
-	// path := "./assets/roms/Super Mario Bros (E).nes"
+	path := "./assets/roms/Super Mario Bros (E).nes"
 	// path := "./assets/roms/test_cpu_exec_space_apu.nes"
 
-	path := getTestPath("palette")
+	// path := getTestPath("palette")
 
 	cartridge, err := rom.LoadRom(path)
 	if err != nil {
