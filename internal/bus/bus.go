@@ -2,22 +2,25 @@ package bus
 
 import (
 	"github.com/sergey121/nes-emulator/internal/cpu"
+	"github.com/sergey121/nes-emulator/internal/input"
 	"github.com/sergey121/nes-emulator/internal/ppu"
 	"github.com/sergey121/nes-emulator/internal/rom"
 )
 
 type Bus struct {
-	CPU       *cpu.CPU
-	PPU       *ppu.PPU
-	Cartridge *rom.Cartridge
+	CPU         *cpu.CPU
+	PPU         *ppu.PPU
+	Cartridge   *rom.Cartridge
+	Controller1 *input.Controller
 	// RAM is the 2KB of RAM in the NES
 	RAM [0x800]byte // 2KB of RAM
 }
 
 func New(ppu *ppu.PPU, cartridge *rom.Cartridge) *Bus {
 	return &Bus{
-		PPU:       ppu,
-		Cartridge: cartridge,
+		PPU:         ppu,
+		Cartridge:   cartridge,
+		Controller1: input.NewController(),
 	}
 }
 
@@ -42,6 +45,8 @@ func (b *Bus) CPURead(addr uint16) byte {
 	case addr >= 0x2000 && addr < 0x4000:
 		// PPU registers ($2000-$3FFF), mirrors every 8 bytes
 		return b.PPU.ReadRegister(0x2000 + (addr % 8))
+	case addr == 0x4016:
+		return b.Controller1.Read()
 	case addr >= 0x8000:
 		// Cartridge ROM ($8000-$FFFF)
 		return b.Cartridge.ReadPRG(addr)
@@ -86,8 +91,11 @@ func (b *Bus) CPUWrite(addr uint16, value byte) {
 		// CPU suspension is not implemented yet (requires cycle counting accuracy),
 		// but immediate copy works for functionality.
 
-	case addr == 0x4016 || addr == 0x4017:
-		// Controller
+	case addr == 0x4016:
+		b.Controller1.Write(value)
+
+	case addr == 0x4017:
+		// Controller 2 (not implemented yet)
 
 	case addr >= 0x8000:
 		// PRG ROM — обычно нельзя писать, но можно обработать

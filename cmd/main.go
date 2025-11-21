@@ -4,6 +4,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/sergey121/nes-emulator/internal/bus"
 	"github.com/sergey121/nes-emulator/internal/cpu"
+	"github.com/sergey121/nes-emulator/internal/input"
 	"github.com/sergey121/nes-emulator/internal/ppu"
 	"github.com/sergey121/nes-emulator/internal/rom"
 )
@@ -11,6 +12,7 @@ import (
 type Game struct {
 	cpu     *cpu.CPU
 	ppu     *ppu.PPU
+	bus     *bus.Bus
 	ebImage *ebiten.Image
 }
 
@@ -45,11 +47,40 @@ func NewGame() *Game {
 	return &Game{
 		cpu:     cpuInstance,
 		ppu:     ppu,
+		bus:     bus,
 		ebImage: ebImage,
 	}
 }
 
 func (g *Game) Update() error {
+	// Update controller state
+	var buttons byte
+	if ebiten.IsKeyPressed(ebiten.KeyZ) {
+		buttons |= input.ButtonA
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyX) {
+		buttons |= input.ButtonB
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyShift) {
+		buttons |= input.ButtonSelect
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyEnter) {
+		buttons |= input.ButtonStart
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyUp) {
+		buttons |= input.ButtonUp
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyDown) {
+		buttons |= input.ButtonDown
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
+		buttons |= input.ButtonLeft
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyRight) {
+		buttons |= input.ButtonRight
+	}
+	g.bus.Controller1.SetButtons(buttons)
+
 	// Один кадр ≈ 29780 PPU-тактов
 	for i := 0; i < 29780; i++ {
 		g.cpu.Clock()
